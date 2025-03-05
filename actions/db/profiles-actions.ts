@@ -6,6 +6,7 @@ Contains server actions related to profiles in the DB.
 
 "use server"
 
+import { createDefaultTemplatesAction } from "@/actions/db/templates-actions"
 import { db } from "@/db/db"
 import {
   InsertProfile,
@@ -20,6 +21,10 @@ export async function createProfileAction(
 ): Promise<ActionState<SelectProfile>> {
   try {
     const [newProfile] = await db.insert(profilesTable).values(data).returning()
+    
+    // Create default templates for new user
+    await createDefaultTemplatesAction(data.userId)
+    
     return {
       isSuccess: true,
       message: "Profile created successfully",
