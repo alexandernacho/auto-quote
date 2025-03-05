@@ -19,13 +19,18 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { ThemeSwitcher } from "./utilities/theme-switcher"
 
-const navLinks = [
+type NavLink = {
+  href: string
+  label: string
+}
+
+const navLinks: NavLink[] = [
   { href: "/about", label: "About" },
   { href: "/pricing", label: "Pricing" },
   { href: "/contact", label: "Contact" }
 ]
 
-const signedInLinks = [{ href: "/todo", label: "Todo" }]
+const signedInLinks: NavLink[] = []
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)

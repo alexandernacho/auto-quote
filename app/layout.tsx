@@ -37,7 +37,11 @@ export default async function RootLayout({
   if (userId) {
     const profileRes = await getProfileByUserIdAction(userId)
     if (!profileRes.isSuccess) {
-      await createProfileAction({ userId })
+      await createProfileAction({ 
+        userId,
+        businessName: "Default Business",
+        businessEmail: "default@example.com"
+      })
     }
   }
 
