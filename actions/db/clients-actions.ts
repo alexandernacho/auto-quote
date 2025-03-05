@@ -79,7 +79,7 @@ export async function getClientsByUserIdAction(
   userId: string
 ): Promise<ActionState<SelectClient[]>> {
   try {
-    const clients = await db.query.clientsTable.findMany({
+    const clients = await db.query.clients.findMany({
       where: eq(clientsTable.userId, userId),
       orderBy: [desc(clientsTable.updatedAt)]
     })
@@ -109,7 +109,7 @@ export async function getClientByIdAction(
   id: string
 ): Promise<ActionState<SelectClient>> {
   try {
-    const client = await db.query.clientsTable.findFirst({
+    const client = await db.query.clients.findFirst({
       where: eq(clientsTable.id, id)
     })
 
