@@ -20,6 +20,7 @@ This is a web app template.
 - Payments: Stripe
 - Analytics: PostHog
 - Deployment: Vercel
+- LLMs: OpenAI, Gemini Flash 2.0
 
 ## Project Structure
 
