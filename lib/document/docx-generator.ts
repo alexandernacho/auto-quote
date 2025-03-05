@@ -3,31 +3,13 @@
  * @description 
  * Provides functionality to generate DOCX documents for invoices and quotes.
  * Uses docx library to create well-formatted Word documents.
- * 
- * Key features:
- * - Create DOCX documents for invoices and quotes
- * - Apply custom styling based on template settings
- * - Add business logo and branding
- * - Generate itemized tables with proper formatting
- * - Calculate and display totals, taxes, etc.
- * 
- * @dependencies
- * - docx: For creating Word documents
- * - SelectClient, SelectInvoice, SelectInvoiceItem, etc.: Database types
- * 
- * @notes
- * - The function accepts a unified document data structure for both invoice and quote types
- * - Various sections of the document (header, items, totals, footer) are created by separate helper functions
- * - Handles fallbacks for missing data (client, logo, etc.)
- * - Default styling is based on the template but with limited style options compared to PDF
  */
 
 import { 
   Document, Paragraph, Table, TableRow, TableCell, 
   TextRun, BorderStyle, WidthType, AlignmentType, 
-  HeadingLevel, ImageRun, Footer, Header, HorizontalPositionRelativeFrom,
-  VerticalPositionRelativeFrom, HorizontalPositionAlign, VerticalPositionAlign,
-  ExternalHyperlink, PageNumber, TableOfContents, ShadingType, Packer
+  HeadingLevel, ImageRun, Footer, PageNumber, ShadingType, Packer,
+  ITableCellBorders
 } from 'docx'
 import { SelectClient, SelectInvoice, SelectInvoiceItem, SelectProfile, SelectQuote, SelectQuoteItem, SelectTemplate } from '@/db/schema'
 
@@ -41,29 +23,42 @@ interface DocumentData {
   profile: SelectProfile
 }
 
-// Reusable currency formatter instance
-const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
+// Define reusable styles
+const STYLES = {
+  colors: {
+    primary: "3b82f6",
+    text: "000000",
+    lightGray: "666666",
+    border: "AAAAAA",
+    white: "FFFFFF"
+  },
+  spacing: {
+    tiny: 80,    // 4pt
+    small: 100,  // 5pt
+    medium: 200, // 10pt
+    large: 400   // 20pt
+  },
+  borders: {
+    none: { style: BorderStyle.NONE },
+    single: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
+  },
+  fonts: {
+    tiny: 16,   // 8pt
+    small: 20,  // 10pt
+    medium: 22, // 11pt
+    regular: 24, // 12pt
+    large: 32,  // 16pt
+    xlarge: 48  // 24pt
+  }
+}
 
-/**
- * Format date to display in document
- */
-const formatDate = (date: Date): string => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-
-/**
- * Format currency value for display
- */
-const formatCurrency = (value: string): string => currencyFormatter.format(parseFloat(value) || 0)
-
-/**
- * Convert hex color to RGB string for Word documents
- */
-const hexToRGB = (hex: string): string => hex?.match(/^#[0-9A-Fa-f]{6}$/) ? hex.substring(1).toUpperCase() : "000000"
+// Cache for reused elements
+const EMPTY_PARAGRAPH = new Paragraph({})
+const SPACER = new Paragraph({ spacing: { before: STYLES.spacing.large } })
+const colorCache = new Map<string, string>()
 
 /**
  * Generate a DOCX document for an invoice or quote
- * 
- * @param data The document data including document details, items, template and profile
- * @returns A Buffer containing the generated DOCX
  */
 export async function generateDocx(data: DocumentData): Promise<Buffer> {
   const { type, document, items, template, client, profile } = data
@@ -73,108 +68,20 @@ export async function generateDocx(data: DocumentData): Promise<Buffer> {
     ? (document as SelectInvoice).invoiceNumber 
     : (document as SelectQuote).quoteNumber
   
-  // Helper function to fetch logo image
-  const getLogoImage = async () => {
-    if (!profile.businessLogo) return undefined
-    
-    try {
-      const logoResponse = await fetch(profile.businessLogo)
-      const logoBuffer = await logoResponse.arrayBuffer()
-      return { data: logoBuffer, width: 150, height: 75 }
-    } catch (err) {
-      console.error('Error processing logo for DOCX:', err)
-      return undefined
-    }
-  }
+  // Prepare logo image if available
+  const logoImage = await getLogoImage(profile.businessLogo || undefined)
   
   // Create document sections
-  const headerSection = createHeader(type, documentNumber, profile, template, await getLogoImage())
+  const headerSection = createHeader({ type, documentNumber, profile, template, logoImage })
   const clientSection = createClientSection(client)
-  const documentInfoSection = createDocumentInfo(type, document, client)
+  const documentInfoSection = createDocumentInfo({ type, document, client })
   const itemsSection = createItemsTable(items)
   const totalsSection = createTotalsSection(document)
-  const notesSection = createNotesSection(document, profile, type)
+  const notesSection = createNotesSection({ document, profile, type })
   
-  // Create the document with all sections
+  // Create the document
   const doc = new Document({
-    styles: {
-      paragraphStyles: [
-        {
-          id: "Normal",
-          name: "Normal",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: {
-            font: template.font || "Arial",
-            size: 24, // 12pt
-            color: "000000"
-          },
-          paragraph: {
-            spacing: {
-              line: 276, // 1.15x line spacing
-            },
-          },
-        },
-        {
-          id: "Heading1",
-          name: "Heading 1",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: {
-            font: template.font || "Arial",
-            size: 48, // 24pt
-            bold: true,
-            color: hexToRGB(template.primaryColor)
-          },
-          paragraph: {
-            spacing: {
-              before: 240, // 12pt
-              after: 120, // 6pt
-            },
-          },
-        },
-        {
-          id: "Heading2",
-          name: "Heading 2",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: {
-            font: template.font || "Arial",
-            size: 32, // 16pt
-            bold: true,
-            color: hexToRGB(template.primaryColor)
-          },
-          paragraph: {
-            spacing: {
-              before: 160, // 8pt
-              after: 80, // 4pt
-            },
-          },
-        },
-        {
-          id: "TableHeader",
-          name: "Table Header",
-          basedOn: "Normal",
-          next: "Normal",
-          quickFormat: true,
-          run: {
-            font: template.font || "Arial",
-            size: 24, // 12pt
-            bold: true,
-            color: hexToRGB(template.secondaryColor)
-          },
-          paragraph: {
-            spacing: {
-              before: 80, // 4pt
-              after: 80, // 4pt
-            },
-          },
-        }
-      ]
-    },
+    styles: createDocumentStyles(template),
     sections: [
       {
         properties: {
@@ -200,28 +107,14 @@ export async function generateDocx(data: DocumentData): Promise<Buffer> {
           ...headerSection,
           
           // Client Information
-          new Paragraph({
-            text: "Bill To:",
-            heading: HeadingLevel.HEADING_2,
-            spacing: {
-              before: 400, // 20pt
-              after: 200, // 10pt
-            },
-          }),
+          createSectionHeading("Bill To:"),
           ...clientSection,
           
           // Document Information
           ...documentInfoSection,
           
           // Items Table
-          new Paragraph({
-            text: "Items:",
-            heading: HeadingLevel.HEADING_2,
-            spacing: {
-              before: 400, // 20pt
-              after: 200, // 10pt
-            },
-          }),
+          createSectionHeading("Items:"),
           itemsSection,
           
           // Totals
@@ -230,54 +123,11 @@ export async function generateDocx(data: DocumentData): Promise<Buffer> {
           // Notes and Terms
           ...notesSection,
           
-          // Footer
-          new Paragraph({
-            text: "",
-            spacing: {
-              before: 400, // 20pt
-            },
-          }),
+          // Footer spacing
+          SPACER,
         ],
         footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({
-                    text: `${profile.businessName} | Page `,
-                    size: 16, // 8pt
-                    color: "666666",
-                  }),
-                  new TextRun({
-                    children: [PageNumber.CURRENT],
-                    size: 16, // 8pt
-                    color: "666666",
-                  }),
-                  new TextRun({
-                    text: " of ",
-                    size: 16, // 8pt
-                    color: "666666",
-                  }),
-                  new TextRun({
-                    children: [PageNumber.TOTAL_PAGES],
-                    size: 16, // 8pt
-                    color: "666666",
-                  }),
-                ],
-              }),
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({
-                    text: template.footerHtml ? template.footerHtml.replace(/<[^>]*>/g, ' ').trim() : "",
-                    size: 16, // 8pt
-                    color: "666666",
-                  }),
-                ],
-              }),
-            ],
-          }),
+          default: createFooter(profile, template),
         },
       },
     ],
@@ -288,23 +138,268 @@ export async function generateDocx(data: DocumentData): Promise<Buffer> {
 }
 
 /**
- * Create header section with business information
- * 
- * @param type Document type ('invoice' or 'quote')
- * @param documentNumber Document number (invoice or quote number)
- * @param profile Business profile
- * @param template Document template
- * @param logoImage Logo image data (optional)
- * @returns Array of paragraphs for the header section
+ * Creates a section heading paragraph
  */
-function createHeader(
-  type: 'invoice' | 'quote',
-  documentNumber: string,
-  profile: SelectProfile,
-  template: SelectTemplate,
-  logoImage?: { data: ArrayBuffer, width: number, height: number }
-) {
-  const headerElements: (Paragraph | Table)[] = []
+function createSectionHeading(text: string): Paragraph {
+  return new Paragraph({
+    text,
+    heading: HeadingLevel.HEADING_2,
+    spacing: {
+      before: STYLES.spacing.large,
+      after: STYLES.spacing.medium,
+    },
+  })
+}
+
+/**
+ * Creates document styles configuration
+ */
+function createDocumentStyles(template: SelectTemplate) {
+  return {
+    paragraphStyles: [
+      {
+        id: "Normal",
+        name: "Normal",
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: {
+          font: template.font || "Arial",
+          size: STYLES.fonts.regular,
+          color: STYLES.colors.text
+        },
+        paragraph: {
+          spacing: {
+            line: 276, // 1.15x line spacing
+          },
+        },
+      },
+      {
+        id: "Heading1",
+        name: "Heading 1",
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: {
+          font: template.font || "Arial",
+          size: STYLES.fonts.xlarge,
+          bold: true,
+          color: hexToRGB(template.primaryColor)
+        },
+        paragraph: {
+          spacing: {
+            before: 240, // 12pt
+            after: 120, // 6pt
+          },
+        },
+      },
+      {
+        id: "Heading2",
+        name: "Heading 2",
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: {
+          font: template.font || "Arial",
+          size: STYLES.fonts.large,
+          bold: true,
+          color: hexToRGB(template.primaryColor)
+        },
+        paragraph: {
+          spacing: {
+            before: 160, // 8pt
+            after: 80, // 4pt
+          },
+        },
+      },
+      {
+        id: "TableHeader",
+        name: "Table Header",
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: {
+          font: template.font || "Arial",
+          size: STYLES.fonts.regular,
+          bold: true,
+          color: hexToRGB(template.secondaryColor)
+        },
+        paragraph: {
+          spacing: {
+            before: STYLES.spacing.tiny,
+            after: STYLES.spacing.tiny,
+          },
+        },
+      }
+    ]
+  }
+}
+
+/**
+ * Creates the document footer
+ */
+function createFooter(profile: SelectProfile, template: SelectTemplate) {
+  return new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            text: `${profile.businessName} | Page `,
+            size: STYLES.fonts.tiny,
+            color: STYLES.colors.lightGray,
+          }),
+          new TextRun({
+            children: [PageNumber.CURRENT],
+            size: STYLES.fonts.tiny,
+            color: STYLES.colors.lightGray,
+          }),
+          new TextRun({
+            text: " of ",
+            size: STYLES.fonts.tiny,
+            color: STYLES.colors.lightGray,
+          }),
+          new TextRun({
+            children: [PageNumber.TOTAL_PAGES],
+            size: STYLES.fonts.tiny,
+            color: STYLES.colors.lightGray,
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            text: template.footerHtml ? template.footerHtml.replace(/<[^>]*>/g, ' ').trim() : "",
+            size: STYLES.fonts.tiny,
+            color: STYLES.colors.lightGray,
+          }),
+        ],
+      }),
+    ],
+  })
+}
+
+/**
+ * Helper to fetch and process logo image
+ */
+async function getLogoImage(logoUrl?: string) {
+  if (!logoUrl) return undefined
+  
+  try {
+    const logoResponse = await fetch(logoUrl)
+    const logoBuffer = await logoResponse.arrayBuffer()
+    return { 
+      data: logoBuffer, 
+      width: 150, 
+      height: 75 
+    }
+  } catch (err) {
+    console.error('Error processing logo for DOCX:', err)
+    return undefined
+  }
+}
+
+/**
+ * Create a text cell with standard options
+ */
+function createTextCell({
+  text,
+  width = 15,
+  bold = false,
+  color = STYLES.colors.text,
+  alignment = AlignmentType.LEFT,
+  size = STYLES.fonts.small,
+  borders = undefined,
+  shading = undefined,
+  margins = {
+    top: STYLES.spacing.small,
+    bottom: STYLES.spacing.small,
+    left: STYLES.spacing.small,
+    right: STYLES.spacing.small,
+  }
+}: {
+  text: string;
+  width?: number;
+  bold?: boolean;
+  color?: string;
+  alignment?: typeof AlignmentType[keyof typeof AlignmentType];
+  size?: number;
+  borders?: ITableCellBorders;
+  shading?: any;
+  margins?: any;
+}) {
+  return new TableCell({
+    width: {
+      size: width,
+      type: WidthType.PERCENTAGE,
+    },
+    borders,
+    shading,
+    margins,
+    children: [
+      new Paragraph({
+        alignment,
+        children: [
+          new TextRun({
+            text,
+            bold,
+            color,
+            size,
+          }),
+        ],
+      }),
+    ],
+  })
+}
+
+/**
+ * Create a table row with label and value cells
+ */
+function createLabelValueRow(label: string, value: string, labelWidth = 15, valueWidth = 85) {
+  return new TableRow({
+    children: [
+      createTextCell({ text: label, width: labelWidth, bold: true }),
+      createTextCell({ text: value, width: valueWidth })
+    ]
+  })
+}
+
+/**
+ * Create a borderless table with standard configuration
+ */
+function createBorderlessTable(rows: TableRow[], width = 100) {
+  return new Table({
+    width: { size: width, type: WidthType.PERCENTAGE },
+    borders: {
+      top: STYLES.borders.none,
+      bottom: STYLES.borders.none,
+      left: STYLES.borders.none,
+      right: STYLES.borders.none,
+      insideHorizontal: STYLES.borders.none,
+      insideVertical: STYLES.borders.none,
+    },
+    rows
+  })
+}
+
+/**
+ * Create header section with business information
+ */
+function createHeader({
+  type,
+  documentNumber,
+  profile,
+  template,
+  logoImage
+}: {
+  type: 'invoice' | 'quote';
+  documentNumber: string;
+  profile: SelectProfile;
+  template: SelectTemplate;
+  logoImage?: { data: ArrayBuffer; width: number; height: number };
+}) {
+  const headerElements = []
   
   // Add logo if available
   if (logoImage) {
@@ -319,85 +414,35 @@ function createHeader(
             },
           }),
         ],
-        spacing: { after: 200 },
+        spacing: { after: STYLES.spacing.medium },
       })
     )
   }
   
-  // Helper functions for creating table cells
-  const createLabelCell = (text: string) => new TableCell({
-    width: { size: 15, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({
-      children: [new TextRun({ text, bold: true })]
-    })]
-  })
+  // Prepare business info rows
+  const businessFields = [
+    { label: "Business:", value: profile.businessName },
+    { label: "Email:", value: profile.businessEmail },
+    { label: "Phone:", value: profile.businessPhone },
+    { label: "Address:", value: profile.businessAddress },
+    { label: "Tax Number:", value: profile.vatNumber }
+  ].filter(field => field.value)
   
-  const createValueCell = (text: string) => new TableCell({
-    width: { size: 85, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({
-      children: [new TextRun({ text })]
-    })]
-  })
-  
-  const createTableRow = (label: string, value: string) => new TableRow({
-    children: [createLabelCell(label), createValueCell(value)]
-  })
-  
-  // Business information table rows
-  const businessInfoRows = [
-    createTableRow("Business:", profile.businessName)
-  ]
-  
-  // Add conditional rows
-  if (profile.businessEmail) {
-    businessInfoRows.push(createTableRow("Email:", profile.businessEmail))
-  }
-  
-  // Business phone
-  if (profile.businessPhone) {
-    businessInfoRows.push(createTableRow("Phone:", profile.businessPhone))
-  }
-  
-  // Business address
-  if (profile.businessAddress) {
-    businessInfoRows.push(createTableRow("Address:", profile.businessAddress))
-  }
-  
-  // VAT/Tax number
-  if (profile.vatNumber) {
-    businessInfoRows.push(createTableRow("Tax Number:", profile.vatNumber))
-  }
-  
-  // Add business info table to header
-  headerElements.push(
-    new Table({
-      width: {
-        size: 100,
-        type: WidthType.PERCENTAGE,
-      },
-      borders: {
-        top: { style: BorderStyle.NONE },
-        bottom: { style: BorderStyle.NONE },
-        left: { style: BorderStyle.NONE },
-        right: { style: BorderStyle.NONE },
-        insideHorizontal: { style: BorderStyle.NONE },
-        insideVertical: { style: BorderStyle.NONE },
-      },
-      rows: businessInfoRows,
-    })
+  const businessInfoRows = businessFields.map(field => 
+    createLabelValueRow(field.label, field.value || "")
   )
+  
+  // Add business info table
+  headerElements.push(createBorderlessTable(businessInfoRows))
   
   return headerElements
 }
 
 /**
  * Create client information section
- * 
- * @param client Client information (optional)
- * @returns Array of paragraphs for the client section
  */
 function createClientSection(client?: SelectClient) {
-  const clientElements: Paragraph[] = []
+  const clientElements = []
   
   if (client) {
     // Add client name
@@ -407,29 +452,28 @@ function createClientSection(client?: SelectClient) {
           new TextRun({
             text: client.name,
             bold: true,
-            size: 24,
+            size: STYLES.fonts.regular,
           }),
         ],
       })
     )
     
-    // Helper function for client detail paragraphs
-    const addClientDetail = (label: string, value: string | null | undefined) => {
-      if (value) {
-        clientElements.push(
-          new Paragraph({
-            text: `${label}: ${value}`,
-            spacing: { before: 80 }
-          })
-        )
-      }
-    }
-    
     // Add client details
-    addClientDetail('Email', client.email)
-    addClientDetail('Phone', client.phone)
-    addClientDetail('Address', client.address)
-    addClientDetail('Tax Number', client.taxNumber)
+    const clientDetails = [
+      { label: 'Email', value: client.email },
+      { label: 'Phone', value: client.phone },
+      { label: 'Address', value: client.address },
+      { label: 'Tax Number', value: client.taxNumber }
+    ].filter(detail => detail.value)
+    
+    clientDetails.forEach(detail => {
+      clientElements.push(
+        new Paragraph({
+          text: `${detail.label}: ${detail.value}`,
+          spacing: { before: STYLES.spacing.tiny }
+        })
+      )
+    })
   } else {
     // Placeholder if no client specified
     clientElements.push(
@@ -442,297 +486,86 @@ function createClientSection(client?: SelectClient) {
 
 /**
  * Create document information section
- * 
- * @param type Document type ('invoice' or 'quote')
- * @param document The invoice or quote document
- * @param client Client information (optional)
- * @returns Array of paragraphs for the document info section
  */
-function createDocumentInfo(
-  type: 'invoice' | 'quote',
-  document: SelectInvoice | SelectQuote,
-  client?: SelectClient
-) {
-  const infoElements: (Paragraph | Table)[] = []
-  
-  // Helper functions for creating table cells and rows
-  const createLabelCell = (text: string) => new TableCell({
-    width: { size: 30, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({
-      children: [new TextRun({ text, bold: true })]
-    })]
-  })
-  
-  const createValueCell = (text: string) => new TableCell({
-    width: { size: 70, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({
-      children: [new TextRun({ text })]
-    })]
-  })
-  
-  const createInfoRow = (label: string, value: string) => new TableRow({
-    children: [createLabelCell(label), createValueCell(value)]
-  })
-  
-  // Create document info table rows
-  const infoRows = [
-    createInfoRow(
-      "Document Number:", 
-      type === 'invoice' 
+function createDocumentInfo({
+  type,
+  document,
+  client
+}: {
+  type: 'invoice' | 'quote';
+  document: SelectInvoice | SelectQuote;
+  client?: SelectClient;
+}) {
+  // Define the document info rows
+  const infoData = [
+    {
+      label: "Document Number:",
+      value: type === 'invoice' 
         ? (document as SelectInvoice).invoiceNumber 
         : (document as SelectQuote).quoteNumber
-    ),
-    createInfoRow("Date:", formatDate(new Date(document.issueDate))),
-    createInfoRow(
-      type === 'invoice' ? "Due Date:" : "Valid Until:", 
-      formatDate(new Date(
+    },
+    {
+      label: "Date:",
+      value: formatDate(new Date(document.issueDate))
+    },
+    {
+      label: type === 'invoice' ? "Due Date:" : "Valid Until:",
+      value: formatDate(new Date(
         type === 'invoice' 
           ? (document as SelectInvoice).dueDate 
           : (document as SelectQuote).validUntil
       ))
-    ),
-    createInfoRow("Client:", client?.name || "No client specified"),
-    createInfoRow("Status:", document.status.toUpperCase())
+    },
+    {
+      label: "Client:",
+      value: client?.name || "No client specified"
+    },
+    {
+      label: "Status:",
+      value: document.status.toUpperCase()
+    }
   ]
   
-  // Create and add the info table
-  infoElements.push(
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      margins: { top: 100, bottom: 100, left: 0, right: 0 },
-      borders: {
-        top: { style: BorderStyle.NONE },
-        bottom: { style: BorderStyle.NONE },
-        left: { style: BorderStyle.NONE },
-        right: { style: BorderStyle.NONE },
-        insideHorizontal: { style: BorderStyle.NONE },
-        insideVertical: { style: BorderStyle.NONE },
-      },
-      rows: infoRows
-    })
+  // Create rows
+  const infoRows = infoData.map(row => 
+    createLabelValueRow(row.label, row.value, 30, 70)
   )
   
-  return infoElements
+  // Create and return the info table
+  return [createBorderlessTable(infoRows)]
 }
 
 /**
  * Create items table for the document
- * 
- * @param items The invoice or quote items
- * @returns Table of items
  */
 function createItemsTable(items: SelectInvoiceItem[] | SelectQuoteItem[]) {
+  // Helper function to create header cell
+  function createHeaderCell(text: string, width: number, alignment: typeof AlignmentType[keyof typeof AlignmentType] = AlignmentType.LEFT) {
+    return createTextCell({
+      text,
+      width,
+      bold: true,
+      color: STYLES.colors.white,
+      alignment,
+      shading: {
+        fill: STYLES.colors.primary,
+        type: ShadingType.SOLID,
+      }
+    })
+  }
+  
   // Create header row
   const headerRow = new TableRow({
     tableHeader: true,
-    height: {
-      value: 400, // 20pt
-      rule: "exact",
-    },
+    height: { value: STYLES.spacing.large, rule: "exact" },
     children: [
-      new TableCell({
-        width: {
-          size: 5,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [
-              new TextRun({
-                text: "#",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 35,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            children: [
-              new TextRun({
-                text: "Description",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 10,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({
-                text: "Quantity",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 15,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({
-                text: "Unit Price",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 10,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({
-                text: "Tax %",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 10,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({
-                text: "Tax Amt",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
-      new TableCell({
-        width: {
-          size: 15,
-          type: WidthType.PERCENTAGE,
-        },
-        shading: {
-          fill: "3b82f6", // Blue color
-          type: ShadingType.SOLID,
-        },
-        margins: {
-          top: 100, // 5pt
-          bottom: 100, // 5pt
-          left: 100, // 5pt
-          right: 100, // 5pt
-        },
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [
-              new TextRun({
-                text: "Total",
-                bold: true,
-                color: "FFFFFF",
-                size: 20, // 10pt
-              }),
-            ],
-          }),
-        ],
-      }),
+      createHeaderCell("#", 5, AlignmentType.CENTER),
+      createHeaderCell("Description", 35),
+      createHeaderCell("Quantity", 10, AlignmentType.RIGHT),
+      createHeaderCell("Unit Price", 15, AlignmentType.RIGHT),
+      createHeaderCell("Tax %", 10, AlignmentType.RIGHT),
+      createHeaderCell("Tax Amt", 10, AlignmentType.RIGHT),
+      createHeaderCell("Total", 15, AlignmentType.RIGHT)
     ],
   })
   
@@ -740,515 +573,135 @@ function createItemsTable(items: SelectInvoiceItem[] | SelectQuoteItem[]) {
   const itemRows = items.map((item, index) => {
     return new TableRow({
       children: [
-        new TableCell({
-          width: {
-            size: 5,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({
-                  text: (index + 1).toString(),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 35,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.LEFT,
-              children: [
-                new TextRun({
-                  text: item.description,
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 10,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: item.quantity,
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(item.unitPrice),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 10,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: `${item.taxRate}%`,
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 10,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(item.taxAmount || '0'),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          margins: {
-            top: 100, // 5pt
-            bottom: 100, // 5pt
-            left: 100, // 5pt
-            right: 100, // 5pt
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(item.total),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
+        createTextCell({ text: (index + 1).toString(), width: 5, alignment: AlignmentType.CENTER }),
+        createTextCell({ text: item.description, width: 35 }),
+        createTextCell({ text: item.quantity, width: 10, alignment: AlignmentType.RIGHT }),
+        createTextCell({ text: formatCurrency(item.unitPrice), width: 15, alignment: AlignmentType.RIGHT }),
+        createTextCell({ text: `${item.taxRate}%`, width: 10, alignment: AlignmentType.RIGHT }),
+        createTextCell({ text: formatCurrency(item.taxAmount || '0'), width: 10, alignment: AlignmentType.RIGHT }),
+        createTextCell({ text: formatCurrency(item.total), width: 15, alignment: AlignmentType.RIGHT })
       ],
     })
   })
   
-  // Combine header and item rows
-  const tableRows = [headerRow, ...itemRows]
-  
   // Create and return the table
   return new Table({
-    width: {
-      size: 100,
-      type: WidthType.PERCENTAGE,
-    },
+    width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
-      top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-      bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-      left: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-      right: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-      insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-      insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+      top: STYLES.borders.single,
+      bottom: STYLES.borders.single,
+      left: STYLES.borders.single,
+      right: STYLES.borders.single,
+      insideHorizontal: STYLES.borders.single,
+      insideVertical: STYLES.borders.single
     },
-    rows: tableRows,
+    rows: [headerRow, ...itemRows],
   })
 }
 
 /**
  * Create totals section for the document
- * 
- * @param document The invoice or quote document
- * @returns Array of paragraphs and tables for the totals section
  */
 function createTotalsSection(document: SelectInvoice | SelectQuote) {
-  const totalElements = []
+  const totalElements: (Paragraph | Table)[] = [SPACER]
   
-  // Add spacing
-  totalElements.push(
-    new Paragraph({
-      spacing: {
-        before: 400, // 20pt
-      },
-    })
-  )
-  
-  // Create totals table
-  const totalsRows = []
-  
-  // Subtotal
-  totalsRows.push(
-    new TableRow({
+  // Helper for creating total rows
+  function createTotalRow(label: string, amount: string, highlight = false) {
+    const cellOptions = highlight ? {
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        left: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        right: { style: BorderStyle.NONE },
+      } as ITableCellBorders,
+      shading: {
+        fill: STYLES.colors.primary,
+        type: ShadingType.SOLID,
+      }
+    } : {
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        left: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        right: { style: BorderStyle.NONE },
+      } as ITableCellBorders
+    }
+    
+    const valueCellOptions = highlight ? {
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+      } as ITableCellBorders,
+      shading: {
+        fill: STYLES.colors.primary,
+        type: ShadingType.SOLID,
+      }
+    } : {
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.SINGLE, size: 1, color: STYLES.colors.border },
+      } as ITableCellBorders
+    }
+    
+    return new TableRow({
       children: [
         new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
+          width: { size: 70, type: WidthType.PERCENTAGE },
           borders: {
             top: { style: BorderStyle.NONE },
             bottom: { style: BorderStyle.NONE },
             left: { style: BorderStyle.NONE },
             right: { style: BorderStyle.NONE },
-          },
-          children: [new Paragraph({})],
+          } as ITableCellBorders,
+          children: [EMPTY_PARAGRAPH],
         }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            right: { style: BorderStyle.NONE },
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: "Subtotal:",
-                  bold: true,
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
+        createTextCell({ 
+          text: label, 
+          width: 15, 
+          bold: true, 
+          alignment: AlignmentType.RIGHT,
+          color: highlight ? STYLES.colors.white : STYLES.colors.text,
+          size: highlight ? STYLES.fonts.medium : STYLES.fonts.small,
+          ...cellOptions
         }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.NONE },
-            right: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(document.subtotal),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
+        createTextCell({ 
+          text: amount, 
+          width: 15, 
+          alignment: AlignmentType.RIGHT,
+          bold: highlight,
+          color: highlight ? STYLES.colors.white : STYLES.colors.text,
+          size: highlight ? STYLES.fonts.medium : STYLES.fonts.small,
+          ...valueCellOptions
         }),
       ],
     })
-  )
+  }
   
-  // Tax amount
-  totalsRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.NONE },
-            bottom: { style: BorderStyle.NONE },
-            left: { style: BorderStyle.NONE },
-            right: { style: BorderStyle.NONE },
-          },
-          children: [new Paragraph({})],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            right: { style: BorderStyle.NONE },
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: "Tax Amount:",
-                  bold: true,
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.NONE },
-            right: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(document.taxAmount),
-                  size: 20, // 10pt
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
+  // Create totals rows
+  const totalsRows = [
+    createTotalRow("Subtotal:", formatCurrency(document.subtotal)),
+    createTotalRow("Tax Amount:", formatCurrency(document.taxAmount))
+  ]
   
-  // Discount (if applicable)
+  // Add discount if applicable
   if (parseFloat(document.discount) > 0) {
     totalsRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            width: {
-              size: 70,
-              type: WidthType.PERCENTAGE,
-            },
-            borders: {
-              top: { style: BorderStyle.NONE },
-              bottom: { style: BorderStyle.NONE },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.NONE },
-            },
-            children: [new Paragraph({})],
-          }),
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-              left: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-              right: { style: BorderStyle.NONE },
-            },
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({
-                    text: "Discount:",
-                    bold: true,
-                    size: 20, // 10pt
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            },
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({
-                    text: `-${formatCurrency(document.discount)}`,
-                    size: 20, // 10pt
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
+      createTotalRow("Discount:", `-${formatCurrency(document.discount)}`)
     )
   }
   
-  // Total
+  // Add total (highlighted)
   totalsRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.NONE },
-            bottom: { style: BorderStyle.NONE },
-            left: { style: BorderStyle.NONE },
-            right: { style: BorderStyle.NONE },
-          },
-          children: [new Paragraph({})],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            right: { style: BorderStyle.NONE },
-          },
-          shading: {
-            fill: "3b82f6", // Blue color
-            type: ShadingType.SOLID,
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: "Total:",
-                  bold: true,
-                  color: "FFFFFF",
-                  size: 22, // 11pt
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-            left: { style: BorderStyle.NONE },
-            right: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-          },
-          shading: {
-            fill: "3b82f6", // Blue color
-            type: ShadingType.SOLID,
-          },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({
-                  text: formatCurrency(document.total),
-                  bold: true,
-                  color: "FFFFFF",
-                  size: 22, // 11pt
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
+    createTotalRow("Total:", formatCurrency(document.total), true)
   )
   
   // Add totals table
   totalElements.push(
-    new Table({
-      width: {
-        size: 100,
-        type: WidthType.PERCENTAGE,
-      },
-      borders: {
-        top: { style: BorderStyle.NONE },
-        bottom: { style: BorderStyle.NONE },
-        left: { style: BorderStyle.NONE },
-        right: { style: BorderStyle.NONE },
-        insideHorizontal: { style: BorderStyle.NONE },
-        insideVertical: { style: BorderStyle.NONE },
-      },
-      rows: totalsRows,
-    })
+    createBorderlessTable(totalsRows)
   )
   
   return totalElements
@@ -1256,46 +709,79 @@ function createTotalsSection(document: SelectInvoice | SelectQuote) {
 
 /**
  * Create notes and terms section for the document
- * 
- * @param document The invoice or quote document
- * @param profile The business profile
- * @param type Document type ('invoice' or 'quote')
- * @returns Array of paragraphs for the notes and terms section
  */
-function createNotesSection(
-  document: SelectInvoice | SelectQuote,
-  profile: SelectProfile,
-  type: 'invoice' | 'quote'
-) {
+function createNotesSection({
+  document,
+  profile,
+  type
+}: {
+  document: SelectInvoice | SelectQuote;
+  profile: SelectProfile;
+  type: 'invoice' | 'quote';
+}) {
   const notesElements: Paragraph[] = []
   
-  // Helper function to create a section with title and content
-  const addSection = (title: string, content: string) => {
+  // Helper function to add a section if content exists
+  const addSection = (title: string, content?: string) => {
+    if (!content) return
+    
     notesElements.push(
-      new Paragraph({
-        text: title,
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 }
-      }),
+      createSectionHeading(title),
       new Paragraph({
         text: content,
-        spacing: { after: 200 }
+        spacing: { after: STYLES.spacing.medium }
       })
     )
   }
   
   // Add sections conditionally
-  if (document.notes) {
-    addSection("Notes:", document.notes)
-  }
+  addSection("Notes:", document.notes || undefined)
+  addSection("Terms and Conditions:", document.termsAndConditions || undefined)
   
-  if (document.termsAndConditions) {
-    addSection("Terms and Conditions:", document.termsAndConditions)
-  }
-  
-  if (type === 'invoice' && profile.paymentInstructions) {
-    addSection("Payment Instructions:", profile.paymentInstructions)
+  if (type === 'invoice') {
+    addSection("Payment Instructions:", profile.paymentInstructions || undefined)
   }
   
   return notesElements
+}
+
+/**
+ * Format date to display in document
+ */
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+}
+
+/**
+ * Format currency value for display
+ */
+function formatCurrency(value: string): string {
+  const numValue = parseFloat(value) || 0
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2
+  }).format(numValue)
+}
+
+/**
+ * Convert hex color to RGB string for Word documents
+ * with memoization for performance
+ */
+function hexToRGB(hex: string): string {
+  if (!hex || !hex.match(/^#[0-9A-Fa-f]{6}$/)) {
+    return "000000"
+  }
+  
+  if (colorCache.has(hex)) {
+    return colorCache.get(hex)!
+  }
+  
+  const result = hex.substring(1).toUpperCase()
+  colorCache.set(hex, result)
+  return result
 }
