@@ -1,80 +1,110 @@
 /**
- * @file Client extraction prompt
+ * @file Client extractor prompt builder
  * @description 
- * This file contains the prompt template for extracting client information from unstructured text.
- * It's a specialized version of the general parser that focuses exclusively on client details.
+ * Builds prompts for LLM to extract client information from unstructured text.
+ * Creates a focused prompt for identifying and extracting client details.
+ * 
+ * Key features:
+ * - Generate prompts specifically for client information extraction
+ * - Include context about existing clients for better matching
+ * - Structure the expected output format
+ * - Provide clear instructions for client identification
  * 
  * @dependencies
- * - SelectClient from "@/db/schema"
+ * - SelectClient: Database type for client data
  * 
  * @notes
- * - Used when the system specifically needs to extract or match client information
- * - Provides more detailed client-focused instructions to the LLM
+ * - More focused than the general invoice/quote parser
+ * - Used when client information needs to be extracted separately
+ * - Provides existing clients to help with matching and disambiguation
  */
 
 import { SelectClient } from "@/db/schema"
 
-/**
- * Interface for client extraction context
- */
+// Define the context interface for client extraction
 interface ClientExtractionContext {
   text: string
   existingClients: SelectClient[]
 }
 
 /**
- * Builds a prompt for client extraction based on the given context
- * @param context Object containing the text to parse and existing clients
- * @returns Formatted prompt string to send to the LLM
+ * Build a prompt for client information extraction
+ * 
+ * @param context The context data including user text and existing clients
+ * @returns Formatted prompt string for the LLM
  */
 export function buildClientExtractorPrompt(context: ClientExtractionContext): string {
-  // Format existing clients as JSON for the LLM to reference
-  const clientsData = context.existingClients.map(client => ({
-    id: client.id,
-    name: client.name,
-    email: client.email,
-    phone: client.phone,
-    address: client.address,
-    taxNumber: client.taxNumber
-  }))
+  const { text, existingClients } = context
+  
+  // Start with the system instructions
+  let prompt = `
+You are an expert client information extractor. Your task is to identify and extract client details from unstructured text.
 
-  // Build the complete prompt
-  return `
-You are an expert client information extractor for a business invoicing system. Your task is to analyze unstructured text input and extract structured information about a client.
-
-## EXISTING CLIENTS
-${JSON.stringify(clientsData, null, 2)}
-
-## USER INPUT
+USER'S TEXT INPUT:
 """
-${context.text}
+${text}
 """
 
-## INSTRUCTIONS
-1. Extract client information from the text:
-   - Client name (company or individual)
-   - Email address
-   - Phone number
-   - Physical address
-   - Tax/VAT number (if present)
+INSTRUCTIONS:
+Analyze the text and extract information about a client, including:
+1. Client name
+2. Email address (if present)
+3. Phone number (if present)
+4. Physical address (if present)
+5. Tax/VAT number (if present)
 
-2. Check if this matches an existing client:
-   - Compare the extracted information with the existing clients list
-   - If there's a match with high confidence, include the client's ID
-   - Assess match confidence as high, medium, or low
-
-## RESPONSE FORMAT
-Respond with JSON only, following this exact structure:
-{
-  "id": "string or null if not matched",
-  "name": "string",
-  "email": "string or null",
-  "phone": "string or null",
-  "address": "string or null",
-  "taxNumber": "string or null",
-  "confidence": "high, medium, or low"
+EXISTING CLIENTS:
+${existingClients.length > 0 
+  ? existingClients.map(client => {
+      return `- ${client.name} (ID: ${client.id})
+    ${client.email ? `Email: ${client.email}` : ''}
+    ${client.phone ? `Phone: ${client.phone}` : ''}
+    ${client.address ? `Address: ${client.address}` : ''}
+    ${client.taxNumber ? `Tax Number: ${client.taxNumber}` : ''}`
+    }).join('\n\n')
+  : 'No existing clients.'
 }
 
-Be precise and extract as much information as possible. If information is missing, leave the field as null. Make reasonable inferences when information is implied but not explicit.
+OUTPUT FORMAT:
+Provide the output as a JSON object with the following structure:
+{
+  "id": "optional-existing-client-id-if-matched",
+  "name": "client name",
+  "email": "client email (if available)",
+  "phone": "client phone (if available)",
+  "address": "client address (if available)",
+  "taxNumber": "client tax/VAT number (if available)",
+  "confidence": "high/medium/low"
+}
+
+IMPORTANT RULES:
+1. The "name" field is required - extract or infer a client name even if it's not explicitly stated.
+2. Leave other fields empty if they're not present in the text.
+3. Try to match the client to an existing client if possible. If matched with high confidence, include the client ID.
+4. Set the confidence level based on how sure you are about the client identification:
+   - "high": Clear, explicit client information that matches an existing client
+   - "medium": Clear client information but doesn't match an existing client, or partial match
+   - "low": Inferred or ambiguous client information
+5. If multiple potential clients are mentioned, choose the most likely one based on context.
+6. Format phone numbers as provided in the text.
+
+EXAMPLE INPUT:
+"""
+Please create an invoice for Acme Corporation. The contact is John Smith (john@acme.com).
+"""
+
+EXAMPLE OUTPUT:
+{
+  "name": "Acme Corporation",
+  "email": "john@acme.com",
+  "phone": "",
+  "address": "",
+  "taxNumber": "",
+  "confidence": "medium"
+}
+
+Now, analyze the user's text and provide a structured response containing only the client information:
 `
+
+  return prompt
 }

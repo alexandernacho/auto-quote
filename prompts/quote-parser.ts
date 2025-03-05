@@ -1,119 +1,169 @@
 /**
- * @file Quote parsing prompt
+ * @file Quote parser prompt builder
  * @description 
- * This file contains the prompt template for parsing unstructured text into structured quote data.
- * It builds a detailed prompt with all necessary context for the LLM to accurately extract quote information.
+ * Builds prompts for LLM to parse unstructured text into structured quote data.
+ * Creates a detailed prompt with instructions and context for the LLM.
+ * 
+ * Key features:
+ * - Generate prompts for quote parsing
+ * - Include context about user's business, clients, and products
+ * - Structure the expected output format
+ * - Provide example inputs and outputs for better LLM performance
  * 
  * @dependencies
- * - LLMParseContext from "@/types"
+ * - LLMParseContext: Context data for prompt generation
  * 
  * @notes
- * - Similar to invoice parser but with quote-specific fields and instructions
- * - Includes valid until date instead of due date
- * - Emphasizes the quote-specific nature of the extraction
+ * - The prompt includes user profile information to help with context
+ * - Existing clients and products are provided to aid in matching
+ * - Clear instructions are given about the expected output format
+ * - Examples help guide the LLM to produce consistent results
+ * - Similar to invoice parsing but with quote-specific fields and terminology
  */
 
 import { LLMParseContext } from "@/types"
 
 /**
- * Builds a prompt for quote parsing based on the given context
- * @param context Object containing the text to parse and relevant business context
- * @returns Formatted prompt string to send to the LLM
+ * Build a prompt for quote parsing
+ * 
+ * @param context The context data including user text, profile, clients, and products
+ * @returns Formatted prompt string for the LLM
  */
 export function buildQuoteParserPrompt(context: LLMParseContext): string {
-  // Format existing clients and products as JSON for the LLM to reference
-  const clientsData = context.clients.map(client => ({
-    id: client.id,
-    name: client.name,
-    email: client.email,
-    phone: client.phone,
-    address: client.address,
-    taxNumber: client.taxNumber
-  }))
+  const { text, profile, clients, products } = context
+  
+  // Start with the system instructions
+  let prompt = `
+You are an expert quote parser for a business called "${profile.businessName}". Your task is to extract structured quote data from unstructured text.
 
-  const productsData = context.products.map(product => ({
-    id: product.id,
-    name: product.name,
-    description: product.description,
-    unitPrice: product.unitPrice,
-    taxRate: product.taxRate
-  }))
-
-  // Build the complete prompt
-  return `
-You are an expert quote parser for a small business quoting system. Your task is to analyze unstructured text input and extract structured information about a quote.
-
-## CONTEXT
-- Business name: ${context.profile.businessName}
-- Default tax rate: ${context.profile.defaultTaxRate || '0'}%
-- The user is creating a QUOTE (not an invoice)
-
-## EXISTING CLIENTS
-${JSON.stringify(clientsData, null, 2)}
-
-## EXISTING PRODUCTS/SERVICES
-${JSON.stringify(productsData, null, 2)}
-
-## USER INPUT
+USER'S TEXT INPUT:
 """
-${context.text}
+${text}
 """
 
-## INSTRUCTIONS
-1. Extract client information:
-   - Try to identify if this matches an existing client from the provided list
-   - If it matches an existing client with high confidence, use their ID and information
-   - If uncertain, extract as much client information as possible without assigning an ID
+INSTRUCTIONS:
+Extract information about:
+1. The client (either match to existing clients or extract new client details)
+2. The products/services with quantities, prices, and tax rates
+3. Quote details like dates, validity period, and notes
 
-2. Extract quote line items:
-   - For each product or service mentioned, identify if it matches an existing product
-   - If it matches an existing product with high confidence, include the product ID
-   - Extract description, quantity, unit price, and tax rate (if mentioned)
-   - Calculate subtotal (quantity × unit price) and total (subtotal + tax) for each item
+USER'S PROFILE:
+Business Name: ${profile.businessName}
+Business Email: ${profile.businessEmail}
+${profile.businessPhone ? `Business Phone: ${profile.businessPhone}` : ''}
+${profile.businessAddress ? `Business Address: ${profile.businessAddress}` : ''}
+${profile.vatNumber ? `VAT/Tax Number: ${profile.vatNumber}` : ''}
+Default Tax Rate: ${profile.defaultTaxRate || '0'}%
 
-3. Extract other quote details:
-   - Issue date (default to today if not specified)
-   - Valid until date (default to 30 days from issue date if not specified)
-   - Any notes or special instructions
-   - Any discount mentioned
+EXISTING CLIENTS:
+${clients.length > 0 
+  ? clients.map(client => {
+      return `- ${client.name} (ID: ${client.id})
+    ${client.email ? `Email: ${client.email}` : ''}
+    ${client.phone ? `Phone: ${client.phone}` : ''}
+    ${client.address ? `Address: ${client.address}` : ''}
+    ${client.taxNumber ? `Tax Number: ${client.taxNumber}` : ''}`
+    }).join('\n\n')
+  : 'No existing clients.'
+}
 
-4. Identify unclear information:
-   - Flag any ambiguous information that would require clarification
-   - Provide specific questions the system should ask the user to clarify
+EXISTING PRODUCTS/SERVICES:
+${products.length > 0
+  ? products.map(product => {
+      return `- ${product.name} (ID: ${product.id})
+    ${product.description ? `Description: ${product.description}` : ''}
+    Unit Price: ${product.unitPrice}
+    Tax Rate: ${product.taxRate}%
+    ${product.isRecurring ? `Recurring: ${product.recurrenceUnit || 'Yes'}` : ''}`
+    }).join('\n\n')
+  : 'No existing products/services.'
+}
 
-## RESPONSE FORMAT
-Respond with JSON only, following this exact structure:
+OUTPUT FORMAT:
+Provide the output as a JSON object with the following structure:
 {
   "client": {
-    "id": "string or null if not matched",
-    "name": "string",
-    "email": "string or null",
-    "phone": "string or null",
-    "address": "string or null",
-    "taxNumber": "string or null",
-    "confidence": "high, medium, or low"
+    "id": "optional-existing-client-id",
+    "name": "client name",
+    "email": "client email (if available)",
+    "phone": "client phone (if available)",
+    "address": "client address (if available)",
+    "taxNumber": "client tax number (if available)",
+    "confidence": "high/medium/low"
   },
   "items": [
     {
-      "productId": "string or null if not matched",
-      "description": "string",
-      "quantity": "string (numeric value)",
-      "unitPrice": "string (numeric value)",
-      "taxRate": "string (numeric value, percentage)",
-      "subtotal": "string (numeric value)",
-      "total": "string (numeric value)"
+      "productId": "optional-existing-product-id",
+      "description": "product or service description",
+      "quantity": "quantity as string",
+      "unitPrice": "price per unit as string",
+      "taxRate": "tax rate percentage as string",
+      "subtotal": "calculated subtotal as string",
+      "total": "calculated total including tax as string"
     }
   ],
   "document": {
-    "issueDate": "ISO date string or null",
-    "validUntil": "ISO date string or null",
-    "notes": "string or null",
-    "discount": "string (numeric value) or null"
+    "issueDate": "YYYY-MM-DD",
+    "validUntil": "YYYY-MM-DD",
+    "notes": "quote notes if any"
   },
-  "needsClarification": boolean,
-  "clarificationQuestions": ["string"]
+  "needsClarification": true/false,
+  "clarificationQuestions": ["question 1", "question 2"]
 }
 
-Be precise, make reasonable inferences when information is implied but not explicit, and flag for clarification when there's genuine ambiguity. Format monetary values as numeric strings without currency symbols (e.g., "100.00").
+IMPORTANT RULES:
+1. Try to match clients by name, email, phone, or address to existing clients. If matched with high confidence, include the client ID.
+2. Try to match products/services to existing ones. If matched with high confidence, include the product ID.
+3. Calculate subtotals as quantity × unitPrice.
+4. Calculate taxAmount as subtotal × (taxRate/100).
+5. Calculate total as subtotal + taxAmount.
+6. Use the default tax rate of ${profile.defaultTaxRate || '0'}% for items where tax is not specified.
+7. If information is missing or ambiguous, set needsClarification to true and include specific questions.
+8. Format all monetary values as strings with 2 decimal places (e.g., "123.45").
+9. Format dates in YYYY-MM-DD format.
+10. If no specific issue date is mentioned, use today's date.
+11. If no specific validity period is mentioned, set validUntil to 30 days from the issue date.
+
+EXAMPLE INPUT:
+"""
+Create a quote for ABC Corp for a website redesign project. The project will cost $5000 and includes 20 hours of design work at $100/hour and 30 hours of development at $100/hour. The quote should be valid for 60 days.
+"""
+
+EXAMPLE OUTPUT:
+{
+  "client": {
+    "name": "ABC Corp",
+    "confidence": "medium"
+  },
+  "items": [
+    {
+      "description": "Website Design",
+      "quantity": "20",
+      "unitPrice": "100.00",
+      "taxRate": "0.00",
+      "subtotal": "2000.00",
+      "total": "2000.00"
+    },
+    {
+      "description": "Website Development",
+      "quantity": "30",
+      "unitPrice": "100.00",
+      "taxRate": "0.00",
+      "subtotal": "3000.00",
+      "total": "3000.00"
+    }
+  ],
+  "document": {
+    "issueDate": "2023-06-15",
+    "validUntil": "2023-08-14",
+    "notes": "Website redesign project quote"
+  },
+  "needsClarification": false,
+  "clarificationQuestions": []
+}
+
+Now, analyze the user's text and provide a structured response:
 `
+
+  return prompt
 }
