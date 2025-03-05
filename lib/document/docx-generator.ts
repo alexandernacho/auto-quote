@@ -41,6 +41,24 @@ interface DocumentData {
   profile: SelectProfile
 }
 
+// Reusable currency formatter instance
+const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
+
+/**
+ * Format date to display in document
+ */
+const formatDate = (date: Date): string => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+
+/**
+ * Format currency value for display
+ */
+const formatCurrency = (value: string): string => currencyFormatter.format(parseFloat(value) || 0)
+
+/**
+ * Convert hex color to RGB string for Word documents
+ */
+const hexToRGB = (hex: string): string => hex?.match(/^#[0-9A-Fa-f]{6}$/) ? hex.substring(1).toUpperCase() : "000000"
+
 /**
  * Generate a DOCX document for an invoice or quote
  * 
@@ -55,28 +73,22 @@ export async function generateDocx(data: DocumentData): Promise<Buffer> {
     ? (document as SelectInvoice).invoiceNumber 
     : (document as SelectQuote).quoteNumber
   
-  // Prepare logo image if available
-  let logoImage
-  if (profile.businessLogo) {
+  // Helper function to fetch logo image
+  const getLogoImage = async () => {
+    if (!profile.businessLogo) return undefined
+    
     try {
-      // Fetch logo image
       const logoResponse = await fetch(profile.businessLogo)
       const logoBuffer = await logoResponse.arrayBuffer()
-      
-      // Create logo image for document
-      logoImage = {
-        data: logoBuffer,
-        width: 150,
-        height: 75
-      }
+      return { data: logoBuffer, width: 150, height: 75 }
     } catch (err) {
       console.error('Error processing logo for DOCX:', err)
-      // Continue without logo if there's an error
+      return undefined
     }
   }
   
   // Create document sections
-  const headerSection = createHeader(type, documentNumber, profile, template, logoImage)
+  const headerSection = createHeader(type, documentNumber, profile, template, await getLogoImage())
   const clientSection = createClientSection(client)
   const documentInfoSection = createDocumentInfo(type, document, client)
   const itemsSection = createItemsTable(items)
@@ -292,7 +304,7 @@ function createHeader(
   template: SelectTemplate,
   logoImage?: { data: ArrayBuffer, width: number, height: number }
 ) {
-  const headerElements = []
+  const headerElements: (Paragraph | Table)[] = []
   
   // Add logo if available
   if (logoImage) {
@@ -307,218 +319,53 @@ function createHeader(
             },
           }),
         ],
-        spacing: {
-          after: 200, // 10pt
-        },
+        spacing: { after: 200 },
       })
     )
   }
   
-  // Business information table (2 columns)
-  const businessInfoRows = []
+  // Helper functions for creating table cells
+  const createLabelCell = (text: string) => new TableCell({
+    width: { size: 15, type: WidthType.PERCENTAGE },
+    children: [new Paragraph({
+      children: [new TextRun({ text, bold: true })]
+    })]
+  })
   
-  // Business name
-  businessInfoRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 15,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "Business:",
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 85,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: profile.businessName,
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
+  const createValueCell = (text: string) => new TableCell({
+    width: { size: 85, type: WidthType.PERCENTAGE },
+    children: [new Paragraph({
+      children: [new TextRun({ text })]
+    })]
+  })
   
-  // Business email
+  const createTableRow = (label: string, value: string) => new TableRow({
+    children: [createLabelCell(label), createValueCell(value)]
+  })
+  
+  // Business information table rows
+  const businessInfoRows = [
+    createTableRow("Business:", profile.businessName)
+  ]
+  
+  // Add conditional rows
   if (profile.businessEmail) {
-    businessInfoRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Email:",
-                    bold: true,
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: {
-              size: 85,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: profile.businessEmail,
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
-    )
+    businessInfoRows.push(createTableRow("Email:", profile.businessEmail))
   }
   
   // Business phone
   if (profile.businessPhone) {
-    businessInfoRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Phone:",
-                    bold: true,
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: {
-              size: 85,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: profile.businessPhone,
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
-    )
+    businessInfoRows.push(createTableRow("Phone:", profile.businessPhone))
   }
   
   // Business address
   if (profile.businessAddress) {
-    businessInfoRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Address:",
-                    bold: true,
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: {
-              size: 85,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: profile.businessAddress,
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
-    )
+    businessInfoRows.push(createTableRow("Address:", profile.businessAddress))
   }
   
   // VAT/Tax number
   if (profile.vatNumber) {
-    businessInfoRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            width: {
-              size: 15,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Tax Number:",
-                    bold: true,
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: {
-              size: 85,
-              type: WidthType.PERCENTAGE,
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: profile.vatNumber,
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
-    )
+    businessInfoRows.push(createTableRow("Tax Number:", profile.vatNumber))
   }
   
   // Add business info table to header
@@ -550,75 +397,43 @@ function createHeader(
  * @returns Array of paragraphs for the client section
  */
 function createClientSection(client?: SelectClient) {
-  const clientElements = []
+  const clientElements: Paragraph[] = []
   
   if (client) {
-    // Client name
+    // Add client name
     clientElements.push(
       new Paragraph({
         children: [
           new TextRun({
             text: client.name,
             bold: true,
-            size: 24, // 12pt
+            size: 24,
           }),
         ],
       })
     )
     
-    // Client email
-    if (client.email) {
-      clientElements.push(
-        new Paragraph({
-          text: `Email: ${client.email}`,
-          spacing: {
-            before: 80, // 4pt
-          },
-        })
-      )
+    // Helper function for client detail paragraphs
+    const addClientDetail = (label: string, value: string | null | undefined) => {
+      if (value) {
+        clientElements.push(
+          new Paragraph({
+            text: `${label}: ${value}`,
+            spacing: { before: 80 }
+          })
+        )
+      }
     }
     
-    // Client phone
-    if (client.phone) {
-      clientElements.push(
-        new Paragraph({
-          text: `Phone: ${client.phone}`,
-          spacing: {
-            before: 80, // 4pt
-          },
-        })
-      )
-    }
-    
-    // Client address
-    if (client.address) {
-      clientElements.push(
-        new Paragraph({
-          text: `Address: ${client.address}`,
-          spacing: {
-            before: 80, // 4pt
-          },
-        })
-      )
-    }
-    
-    // Client tax number
-    if (client.taxNumber) {
-      clientElements.push(
-        new Paragraph({
-          text: `Tax Number: ${client.taxNumber}`,
-          spacing: {
-            before: 80, // 4pt
-          },
-        })
-      )
-    }
+    // Add client details
+    addClientDetail('Email', client.email)
+    addClientDetail('Phone', client.phone)
+    addClientDetail('Address', client.address)
+    addClientDetail('Tax Number', client.taxNumber)
   } else {
     // Placeholder if no client specified
     clientElements.push(
-      new Paragraph({
-        text: "No client specified",
-      })
+      new Paragraph({ text: "No client specified" })
     )
   }
   
@@ -638,181 +453,53 @@ function createDocumentInfo(
   document: SelectInvoice | SelectQuote,
   client?: SelectClient
 ) {
-  const infoElements = []
+  const infoElements: (Paragraph | Table)[] = []
   
-  // Create document info table
-  const infoRows = []
+  // Helper functions for creating table cells and rows
+  const createLabelCell = (text: string) => new TableCell({
+    width: { size: 30, type: WidthType.PERCENTAGE },
+    children: [new Paragraph({
+      children: [new TextRun({ text, bold: true })]
+    })]
+  })
   
-  // Document number
-  infoRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 30,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "Document Number:",
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: type === 'invoice' 
-                    ? (document as SelectInvoice).invoiceNumber 
-                    : (document as SelectQuote).quoteNumber,
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
+  const createValueCell = (text: string) => new TableCell({
+    width: { size: 70, type: WidthType.PERCENTAGE },
+    children: [new Paragraph({
+      children: [new TextRun({ text })]
+    })]
+  })
   
-  // Issue date
-  infoRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 30,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "Date:",
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: formatDate(new Date(document.issueDate)),
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
+  const createInfoRow = (label: string, value: string) => new TableRow({
+    children: [createLabelCell(label), createValueCell(value)]
+  })
   
-  // Due date or valid until
-  infoRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 30,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "Client:",
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: client?.name || "No client specified",
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
+  // Create document info table rows
+  const infoRows = [
+    createInfoRow(
+      "Document Number:", 
+      type === 'invoice' 
+        ? (document as SelectInvoice).invoiceNumber 
+        : (document as SelectQuote).quoteNumber
+    ),
+    createInfoRow("Date:", formatDate(new Date(document.issueDate))),
+    createInfoRow(
+      type === 'invoice' ? "Due Date:" : "Valid Until:", 
+      formatDate(new Date(
+        type === 'invoice' 
+          ? (document as SelectInvoice).dueDate 
+          : (document as SelectQuote).validUntil
+      ))
+    ),
+    createInfoRow("Client:", client?.name || "No client specified"),
+    createInfoRow("Status:", document.status.toUpperCase())
+  ]
   
-  // Status
-  infoRows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          width: {
-            size: 30,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: "Status:",
-                  bold: true,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableCell({
-          width: {
-            size: 70,
-            type: WidthType.PERCENTAGE,
-          },
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: document.status.toUpperCase(),
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    })
-  )
-  
-  // Add document info table
+  // Create and add the info table
   infoElements.push(
     new Table({
-      width: {
-        size: 50,
-        type: WidthType.PERCENTAGE,
-      },
-      margins: {
-        top: 100, // 5pt
-        bottom: 100, // 5pt
-      },
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      margins: { top: 100, bottom: 100, left: 0, right: 0 },
       borders: {
         top: { style: BorderStyle.NONE },
         bottom: { style: BorderStyle.NONE },
@@ -821,7 +508,7 @@ function createDocumentInfo(
         insideHorizontal: { style: BorderStyle.NONE },
         insideVertical: { style: BorderStyle.NONE },
       },
-      rows: infoRows,
+      rows: infoRows
     })
   )
   
@@ -1580,113 +1267,35 @@ function createNotesSection(
   profile: SelectProfile,
   type: 'invoice' | 'quote'
 ) {
-  const notesElements = []
+  const notesElements: Paragraph[] = []
   
-  // Add notes if available
+  // Helper function to create a section with title and content
+  const addSection = (title: string, content: string) => {
+    notesElements.push(
+      new Paragraph({
+        text: title,
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }),
+      new Paragraph({
+        text: content,
+        spacing: { after: 200 }
+      })
+    )
+  }
+  
+  // Add sections conditionally
   if (document.notes) {
-    notesElements.push(
-      new Paragraph({
-        text: "Notes:",
-        heading: HeadingLevel.HEADING_2,
-        spacing: {
-          before: 400, // 20pt
-          after: 200, // 10pt
-        },
-      }),
-      new Paragraph({
-        text: document.notes,
-        spacing: {
-          after: 200, // 10pt
-        },
-      })
-    )
+    addSection("Notes:", document.notes)
   }
   
-  // Add terms and conditions if available
   if (document.termsAndConditions) {
-    notesElements.push(
-      new Paragraph({
-        text: "Terms and Conditions:",
-        heading: HeadingLevel.HEADING_2,
-        spacing: {
-          before: 400, // 20pt
-          after: 200, // 10pt
-        },
-      }),
-      new Paragraph({
-        text: document.termsAndConditions,
-        spacing: {
-          after: 200, // 10pt
-        },
-      })
-    )
+    addSection("Terms and Conditions:", document.termsAndConditions)
   }
   
-  // Add payment instructions for invoices
   if (type === 'invoice' && profile.paymentInstructions) {
-    notesElements.push(
-      new Paragraph({
-        text: "Payment Instructions:",
-        heading: HeadingLevel.HEADING_2,
-        spacing: {
-          before: 400, // 20pt
-          after: 200, // 10pt
-        },
-      }),
-      new Paragraph({
-        text: profile.paymentInstructions,
-        spacing: {
-          after: 200, // 10pt
-        },
-      })
-    )
+    addSection("Payment Instructions:", profile.paymentInstructions)
   }
   
   return notesElements
-}
-
-/**
- * Format date to display in document
- * 
- * @param date Date to format
- * @returns Formatted date string (e.g., "Jan 31, 2023")
- */
-function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-/**
- * Format currency value for display
- * 
- * @param value Currency value as string
- * @returns Formatted currency string (e.g., "$123.45")
- */
-function formatCurrency(value: string): string {
-  // Parse value to float and format with 2 decimal places
-  const numValue = parseFloat(value) || 0
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2
-  }).format(numValue)
-}
-
-/**
- * Convert hex color to RGB string for Word documents
- * 
- * @param hex Hex color string (e.g., "#ff0000")
- * @returns RGB color string (e.g., "FF0000")
- */
-function hexToRGB(hex: string): string {
-  // Default to black if invalid hex
-  if (!hex || !hex.match(/^#[0-9A-Fa-f]{6}$/)) {
-    return "000000"
-  }
-  
-  // Extract RGB components and return as string
-  return hex.substring(1).toUpperCase()
 }
