@@ -24,7 +24,6 @@
 "use client"
 
 import { getProductsByUserIdAction } from "@/actions/db/products-actions"
-import { ProductForm } from "@/components/app/product-form"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -53,6 +52,7 @@ import { SelectProduct } from "@/db/schema"
 import { CheckCircle2, ChevronsUpDown, DollarSign, LucideIcon, PackagePlus, PercentIcon, PlusCircle } from "lucide-react"
 import { useAuth } from "@clerk/nextjs"
 import { useEffect, useState } from "react"
+import { ProductForm } from "../../products/_components/product-form"
 
 /**
  * Props for the ProductSelector component

@@ -1,3 +1,27 @@
+/**
+ * @file LLM Results component for invoice creation
+ * @description 
+ * This component displays the parsed results from the LLM processing.
+ * It shows structured data extracted from unstructured text in a user-friendly format.
+ * 
+ * Key features:
+ * - Displays client information with confidence indicators
+ * - Shows document details like dates and notes
+ * - Presents line items in a formatted table
+ * - Calculates and displays totals
+ * - Provides visual indicators for confidence levels
+ * 
+ * @dependencies
+ * - UI components: Badge, Card, Table
+ * - lucide-react: For icons
+ * - LLMParseResult: Type definition for parsed result
+ * 
+ * @notes
+ * - Client component for interactive elements
+ * - Uses helper functions for formatting currency and dates
+ * - Includes tooltips for additional information
+ */
+
 "use client"
 
 import { Badge } from "@/components/ui/badge"
@@ -7,13 +31,28 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { LLMParseResult } from "@/types"
 import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
 
+/**
+ * Props for LLMResults component
+ */
 interface LLMResultsProps {
   result: LLMParseResult
   type: 'invoice' | 'quote'
 }
 
+/**
+ * Component to display structured results from LLM parsing
+ * 
+ * @param result - The parsed LLM result data
+ * @param type - The type of document ('invoice' or 'quote')
+ * @returns JSX element displaying the parsed results
+ */
 export function LLMResults({ result, type }: LLMResultsProps) {
   // Format helpers
+  /**
+   * Format date for display
+   * @param dateString - ISO date string
+   * @returns Formatted date string or fallback
+   */
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Not specified"
     try {
@@ -21,6 +60,11 @@ export function LLMResults({ result, type }: LLMResultsProps) {
     } catch (error) { return dateString }
   }
   
+  /**
+   * Format currency for display
+   * @param value - Numeric string
+   * @returns Formatted currency string
+   */
   const formatCurrency = (value?: string) => {
     if (!value) return "$0.00"
     try {
@@ -36,7 +80,11 @@ export function LLMResults({ result, type }: LLMResultsProps) {
     return total + (itemTotal - itemSubtotal)
   }, 0)
   
-  // Get confidence badge by level
+  /**
+   * Get confidence badge by level
+   * @param confidence - Confidence level string
+   * @returns Badge JSX element with appropriate styling
+   */
   const getConfidenceBadge = (confidence?: string) => {
     const badges = {
       high: { bg: "bg-green-100", text: "text-green-800", icon: <CheckCircle className="mr-1 h-3 w-3" />, label: "High Confidence" },

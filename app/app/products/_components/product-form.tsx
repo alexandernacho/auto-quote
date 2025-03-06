@@ -1,3 +1,26 @@
+/**
+ * @file Product form component
+ * @description 
+ * A form component for creating and editing product information.
+ * Handles input validation, form submission, and error handling.
+ * 
+ * Key features:
+ * - Create new products or edit existing ones
+ * - Form validation with error messages
+ * - Responsive layout for different screen sizes
+ * - Conditional fields for recurring products
+ * 
+ * @dependencies
+ * - React Hook Form: For form state management and validation
+ * - ShadCN UI components: For form inputs and styling
+ * - Server actions: For database operations
+ * 
+ * @notes
+ * - Client-side component to allow for interactive form features
+ * - Uses controlled inputs with React Hook Form
+ * - Implements custom validation rules for numeric fields
+ */
+
 "use client"
 
 import { createProductAction, updateProductAction } from "@/actions/db/products-actions"
@@ -17,13 +40,20 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-// Validation schema with numeric field refinement function
+/**
+ * Custom validation function for numeric fields
+ * @param val - String value to validate
+ * @returns Boolean indicating if the value is valid
+ */
 const validateNumericField = (val: string) => {
   if (!val) return true
   const parsed = parseFloat(val)
   return !isNaN(parsed) && parsed >= 0
 }
 
+/**
+ * Validation schema for product form
+ */
 const productFormSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
   description: z.string().optional(),
@@ -35,19 +65,33 @@ const productFormSchema = z.object({
       { message: "Please select a valid recurrence unit" })
 })
 
+/**
+ * Type for form values with validation
+ */
 type ProductFormValues = z.infer<typeof productFormSchema>
 
+/**
+ * Props for the ProductForm component
+ */
 interface ProductFormProps {
   userId: string
   product?: SelectProduct
   onSuccess?: (product: SelectProduct) => void
 }
 
+/**
+ * Form component for creating or editing a product
+ * 
+ * @param userId - The ID of the current user
+ * @param product - Optional existing product data for editing
+ * @param onSuccess - Optional callback function after successful submission
+ */
 export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
+  // Set up form with default values and validation
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: {
@@ -60,12 +104,21 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
     }
   })
 
+  // Watch isRecurring field to conditionally show recurrence unit field
   const isRecurring = form.watch("isRecurring")
 
+  /**
+   * Handle form submission
+   * Creates a new product or updates an existing one
+   */
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true)
     try {
-      const action = product ? updateProductAction(product.id, { ...values, userId }) : createProductAction({ ...values, userId })
+      // Choose action based on whether we're editing or creating
+      const action = product 
+        ? updateProductAction(product.id, { ...values, userId }) 
+        : createProductAction({ ...values, userId })
+      
       const result = await action
       
       if (result.isSuccess) {
@@ -110,6 +163,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
+            {/* Product name field - required */}
             <FormField
               control={form.control}
               name="name"
@@ -124,6 +178,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
+            {/* Description field - optional */}
             <FormField
               control={form.control}
               name="description"
@@ -145,6 +200,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
+            {/* Unit price field - required */}
             <FormField
               control={form.control}
               name="unitPrice"
@@ -171,6 +227,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
+            {/* Tax rate field - required */}
             <FormField
               control={form.control}
               name="taxRate"
@@ -199,6 +256,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
+            {/* Recurring service toggle */}
             <FormField
               control={form.control}
               name="isRecurring"
@@ -220,6 +278,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
+            {/* Recurrence unit field - conditional based on isRecurring */}
             {isRecurring && (
               <FormField
                 control={form.control}

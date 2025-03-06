@@ -7,9 +7,9 @@
 
 "use client"
 
-import { LLMInputForm } from "@/components/app/llm-input-form"
-import { LLMProcessing } from "@/components/app/llm-processing"
-import { LLMResults } from "@/components/app/llm-results"
+import { LLMInputForm } from "./llm-input-form"
+import { LLMProcessing } from "./llm-processing"
+import { LLMResults } from "./llm-results"
 import { useLLMProcessing } from "@/hooks/use-llm-processing"
 import { useState } from "react"
 

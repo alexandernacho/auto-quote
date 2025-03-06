@@ -29,9 +29,6 @@
 
 import { getClientByIdAction } from "@/actions/db/clients-actions"
 import { getDefaultTemplateAction } from "@/actions/db/templates-actions"
-import { LLMInputForm } from "@/components/app/llm-input-form"
-import { LLMProcessing } from "@/components/app/llm-processing"
-import { LLMResults } from "@/components/app/llm-results"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"

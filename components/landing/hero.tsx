@@ -23,7 +23,7 @@ export const HeroSection = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
       >
-        <Link href="/dashboard" onClick={handleDashboardClick}>
+        <Link href="/app/dashboard" onClick={handleDashboardClick}>
           <Button className="bg-blue-500 text-lg hover:bg-blue-600">
             Go to Dashboard &rarr;
           </Button>

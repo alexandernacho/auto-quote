@@ -1,20 +1,64 @@
+/**
+ * @file Client selector component
+ * @description 
+ * This component enables users to select existing clients or create new ones.
+ * Used in invoice and quote creation pages for selecting the client.
+ * 
+ * Key features:
+ * - Search existing clients by name and contact information
+ * - Create new client from within the selector
+ * - Show suggested clients from AI analysis
+ * - Handle confidence levels for suggested matches
+ * 
+ * @dependencies
+ * - ShadCN UI: For command menu, dialog, and other UI components
+ * - Client Form: For creating new clients
+ * - Server actions: For fetching clients
+ * 
+ * @notes
+ * - Client-side component to allow for interactive features
+ * - Uses a dialog for client creation to keep a seamless workflow
+ * - Implements confidence level indicators for AI suggestions
+ */
+
 "use client"
 
 import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
-import { ClientForm } from "@/components/app/client-form"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from "@/components/ui/command"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/lib/hooks/use-toast"
 import { LLMExtractedClient } from "@/types/llm-types"
 import { SelectClient } from "@/db/schema"
 import { CheckCircle2, ChevronsUpDown, PlusCircle, User2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useAuth } from "@clerk/nextjs"
+import { ClientForm } from "../../clients/_components/client-form"
 
+/**
+ * Props for the ClientSelector component
+ */
 interface ClientSelectorProps {
   selectedClientId: string | null
   onClientSelect: (clientId: string) => void
@@ -22,34 +66,50 @@ interface ClientSelectorProps {
   disabled?: boolean
 }
 
+/**
+ * Component for selecting or creating clients
+ * 
+ * @param selectedClientId - Optional ID of currently selected client
+ * @param onClientSelect - Callback function when a client is selected
+ * @param suggestedClient - Optional client suggestion from AI analysis
+ * @param disabled - Whether the component is disabled
+ */
 export function ClientSelector({
   selectedClientId,
   onClientSelect,
   suggestedClient,
   disabled = false
 }: ClientSelectorProps) {
+  // State for UI controls
   const [open, setOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // State for data
   const [clients, setClients] = useState<SelectClient[]>([])
   const [selectedClient, setSelectedClient] = useState<SelectClient | null>(null)
   
+  // Get userId from auth
   const { userId } = useAuth()
   const { toast } = useToast()
   
+  /**
+   * Load clients and set the selected client if there's a selectedClientId
+   */
   useEffect(() => {
     if (!userId) return
     
-    (async () => {
+    async function loadClients() {
       setIsLoading(true)
       try {
-        const result = await getClientsByUserIdAction(userId)
+        const result = await getClientsByUserIdAction(userId as string)
         
         if (result.isSuccess) {
           setClients(result.data)
           
           if (selectedClientId) {
-            setSelectedClient(result.data.find(client => client.id === selectedClientId) || null)
+            const selectedClient = result.data.find(client => client.id === selectedClientId)
+            setSelectedClient(selectedClient || null)
           }
         } else {
           toast({
@@ -68,26 +128,43 @@ export function ClientSelector({
       } finally {
         setIsLoading(false)
       }
-    })()
+    }
+    
+    loadClients()
   }, [userId, selectedClientId, toast])
   
+  /**
+   * Handle client selection
+   */
   const handleSelectClient = (client: SelectClient) => {
     setSelectedClient(client)
     onClientSelect(client.id)
     setOpen(false)
   }
   
+  /**
+   * Handle successful client creation
+   */
   const handleClientCreated = (client: SelectClient) => {
+    // Add the new client to the list
     setClients(prev => [client, ...prev])
+    
+    // Select the newly created client
     setSelectedClient(client)
     onClientSelect(client.id)
+    
+    // Close the create dialog
     setCreateDialogOpen(false)
+    
     toast({
       title: "Client created",
       description: `${client.name} has been added to your clients`,
     })
   }
   
+  /**
+   * Get confidence badge based on confidence level
+   */
   const getConfidenceBadge = (confidence?: string) => {
     if (!confidence) return null
     
@@ -125,6 +202,7 @@ export function ClientSelector({
               <CommandList>
                 <CommandEmpty>No client found. Try a different search or create a new client.</CommandEmpty>
                 
+                {/* AI-suggested client section */}
                 {suggestedClient?.name && !isLoading && (
                   <CommandGroup heading="Suggested Client">
                     <CommandItem
@@ -144,6 +222,7 @@ export function ClientSelector({
                   </CommandGroup>
                 )}
                 
+                {/* Existing clients section */}
                 <CommandGroup heading="Your Clients">
                   {clients.map(client => (
                     <CommandItem
@@ -162,6 +241,7 @@ export function ClientSelector({
                   ))}
                 </CommandGroup>
                 
+                {/* Create new client action */}
                 <CommandGroup heading="Actions">
                   <CommandItem
                     onSelect={() => {
@@ -178,6 +258,7 @@ export function ClientSelector({
           </PopoverContent>
         </Popover>
         
+        {/* Quick create button */}
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" className="shrink-0" disabled={disabled || isLoading}>
@@ -218,6 +299,7 @@ export function ClientSelector({
         </Dialog>
       </div>
       
+      {/* Suggested client hint */}
       {suggestedClient?.name && !selectedClient && (
         <p className="text-sm text-muted-foreground">
           Suggested client: <strong>{suggestedClient.name}</strong>. Select from the list or create new.

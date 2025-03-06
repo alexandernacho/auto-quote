@@ -21,7 +21,7 @@
 
 "use server"
 
-import { ClientForm } from "@/components/app/client-form"
+import { ClientForm } from "../_components/client-form"
 import { auth } from "@clerk/nextjs/server"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"

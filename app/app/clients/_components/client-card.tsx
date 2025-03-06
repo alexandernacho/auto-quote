@@ -1,5 +1,5 @@
 /**
- * @file Client card component
+ * @file Client card component for clients route
  * @description 
  * This component displays client information in a card format.
  * Used for showing client details in lists and detail views.

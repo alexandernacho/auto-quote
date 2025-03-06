@@ -1,5 +1,5 @@
 /**
- * @file Client list component
+ * @file Client list component for clients route
  * @description 
  * This component displays a list of clients with searching and filtering capabilities.
  * Used in the clients management pages for browsing and selecting clients.
@@ -22,7 +22,6 @@
 
 "use client"
 
-import { ClientCard } from "@/components/app/client-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -31,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { AlignJustify, Grid, Plus, Search, UserIcon } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { ClientCard } from "./client-card"
 
 /**
  * Props for the ClientList component

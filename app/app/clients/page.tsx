@@ -26,11 +26,11 @@
 import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ClientList } from "@/components/app/client-list"
 import { auth } from "@clerk/nextjs/server"
 import { Plus } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { ClientList } from "./_components/client-list"
 
 /**
  * Clients List Page

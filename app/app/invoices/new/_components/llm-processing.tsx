@@ -1,9 +1,9 @@
 /**
- * @file LLM Processing component
+ * @file LLM Processing component for invoice creation
  * @description 
  * This component handles the processing of text with LLM, transforming
- * unstructured input into structured data for invoices or quotes.
- * It includes a multi-step workflow: input, processing, clarification, and results.
+ * unstructured input into structured data for invoices. It's placed in
+ * the invoice creation workflow.
  * 
  * Key features:
  * - Step-by-step workflow for LLM processing

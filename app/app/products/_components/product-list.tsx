@@ -23,7 +23,6 @@
 
 "use client"
 
-import { ProductCard } from "@/components/app/product-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { AlignJustify, Grid, Package, Plus } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { ProductCard } from "./product-card"
 
 /**
  * Props for the ProductList component

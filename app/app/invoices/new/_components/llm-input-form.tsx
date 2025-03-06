@@ -1,8 +1,9 @@
 /**
- * @file LLM Input Form component
+ * @file LLM Input Form component for invoice creation
  * @description 
  * This component provides a text input area for users to input unstructured text
- * to be processed by an LLM for invoice or quote generation.
+ * to be processed by an LLM for invoice generation. It's specifically placed in the
+ * invoice creation workflow.
  * 
  * Key features:
  * - Large text area for free-form input
