@@ -48,7 +48,7 @@ import {
   PopoverTrigger
 } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { SelectProduct } from "@/db/schema"
 import { CheckCircle2, ChevronsUpDown, DollarSign, LucideIcon, PackagePlus, PercentIcon, PlusCircle } from "lucide-react"
 import { useAuth } from "@clerk/nextjs"

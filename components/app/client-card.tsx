@@ -43,7 +43,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { SelectClient } from "@/db/schema"
 import { Mail, MapPin, Phone, Trash2, Building, FileText, Edit } from "lucide-react"
 import Link from "next/link"

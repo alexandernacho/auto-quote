@@ -35,7 +35,7 @@ import {
   CardTitle 
 } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { LLMParseResult } from "@/types"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"

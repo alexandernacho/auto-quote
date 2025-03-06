@@ -45,7 +45,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { SelectProduct } from "@/db/schema"
 import { CalendarClock, DollarSign, Edit, PercentIcon, Trash2 } from "lucide-react"
 import Link from "next/link"

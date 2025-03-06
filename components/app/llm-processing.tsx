@@ -41,8 +41,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useToast } from "@/hooks/use-toast"
-import { useLLMProcessing } from "@/hooks/use-llm-processing"
+import { useToast } from "@/lib/hooks/use-toast"
+import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 import { LLMParseResult } from "@/types"
 import { AlertCircle, Check, Edit, HelpCircle, Loader2, RotateCcw } from "lucide-react"
 import { useState } from "react"
@@ -129,7 +129,7 @@ export function LLMProcessing({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {parseResult.clarificationQuestions?.map((question, index) => (
+            {parseResult.clarificationQuestions?.map((question: string, index: number) => (
               <div key={index} className="space-y-2">
                 <label className="text-sm font-medium">
                   {question}
@@ -149,7 +149,7 @@ export function LLMProcessing({
             </Button>
             <Button 
               onClick={handleClarificationSubmit}
-              disabled={!parseResult.clarificationQuestions?.every((_, i) => !!clarificationAnswers[i])}
+              disabled={!parseResult.clarificationQuestions?.every((_: string, i: number) => !!clarificationAnswers[i])}
             >
               Continue
             </Button>

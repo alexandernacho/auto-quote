@@ -49,7 +49,7 @@ import {
   PopoverTrigger
 } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { LLMExtractedClient } from "@/types/llm-types"
 import { SelectClient } from "@/db/schema"
 import { CheckCircle2, ChevronsUpDown, PlusCircle, User2 } from "lucide-react"

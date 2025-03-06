@@ -5,7 +5,7 @@ import { parseLLMTextAction } from "@/actions/llm-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
 import { useState } from "react"
 

@@ -8,7 +8,7 @@ import { createInvoiceAction } from "@/actions/db/invoices-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/lib/hooks/use-toast"
 import { useUser } from "@clerk/nextjs"
 import { useEffect, useState } from "react"
 
