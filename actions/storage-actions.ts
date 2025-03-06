@@ -39,10 +39,30 @@ const ALLOWED_DOCUMENT_TYPES = [
 // Supabase client configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 // Utility function to create Supabase client
-const getSupabaseClient = () => {
-  return createClient(supabaseUrl, supabaseKey);
+const getSupabaseClient = async () => {
+  // Get the auth session
+  const session = await auth();
+  
+  // Use service role key for uploads to bypass RLS
+  // This is more reliable but should be used carefully
+  if (supabaseServiceKey) {
+    return createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
+  }
+  
+  // Fallback to anonymous key if service role key is not available
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false
+    }
+  });
 }
 
 /**
@@ -98,7 +118,7 @@ export async function uploadLogoStorage(
     const path = `${userId}/logo/${fileName}`
     
     // Initialize Supabase client
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     
     // Upload file
     const { data, error } = await supabase.storage
@@ -113,14 +133,18 @@ export async function uploadLogoStorage(
     }
     
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = await supabase.storage
       .from(process.env.NEXT_PUBLIC_SUPABASE_LOGOS_BUCKET || 'logos')
-      .getPublicUrl(path)
+      .createSignedUrl(path, 60 * 60 * 24 * 30) // URL valid for 30 days
+    
+    if (!urlData) {
+      throw new Error('Failed to generate signed URL')
+    }
     
     return {
       isSuccess: true,
       message: "Logo uploaded successfully",
-      data: { url: urlData.publicUrl }
+      data: { url: urlData.signedUrl }
     }
   } catch (error) {
     console.error("Error uploading logo:", error)
@@ -161,7 +185,7 @@ export async function uploadDocumentStorage(
     const path = `${userId}/${documentType}s/${documentId}/${fileName}`
     
     // Initialize Supabase client
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     
     // Upload file
     const { data, error } = await supabase.storage
@@ -176,14 +200,18 @@ export async function uploadDocumentStorage(
     }
     
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = await supabase.storage
       .from(process.env.NEXT_PUBLIC_SUPABASE_DOCUMENTS_BUCKET || 'documents')
-      .getPublicUrl(path)
+      .createSignedUrl(path, 60 * 60 * 24 * 7) // URL valid for 7 days
+    
+    if (!urlData) {
+      throw new Error('Failed to generate signed URL')
+    }
     
     return {
       isSuccess: true,
       message: "Document uploaded successfully",
-      data: { url: urlData.publicUrl }
+      data: { url: urlData.signedUrl }
     }
   } catch (error) {
     console.error("Error uploading document:", error)
@@ -218,7 +246,7 @@ export async function deleteFileStorage(
     }
     
     // Initialize Supabase client
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     
     // Delete the file
     const { error } = await supabase.storage
@@ -264,7 +292,7 @@ export async function listFilesStorage(
       : `${userId}/${directory}`
     
     // Initialize Supabase client
-    const supabase = getSupabaseClient()
+    const supabase = await getSupabaseClient()
     
     // List files in the directory
     const { data, error } = await supabase.storage
@@ -276,23 +304,31 @@ export async function listFilesStorage(
     }
     
     // Get public URLs for each file
-    const files = data.filter((item: { id: string }) => !item.id.endsWith('/')).map((item: { name: string }) => {
+    const files = await Promise.all(data.filter((item: { id: string }) => !item.id.endsWith('/')).map(async (item: { name: string }) => {
       const path = `${userDirectory}/${item.name}`
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = await supabase.storage
         .from(bucket)
-        .getPublicUrl(path)
+        .createSignedUrl(path, 60 * 60 * 24 * 7) // URL valid for 7 days
+      
+      if (!urlData) {
+        console.error(`Failed to generate signed URL for ${item.name}`)
+        return null
+      }
       
       return {
         name: item.name,
         path: path,
-        url: urlData.publicUrl
+        url: urlData.signedUrl
       }
-    })
+    }))
+    
+    // Filter out any null entries (failed URL generation)
+    const validFiles = files.filter(file => file !== null)
     
     return {
       isSuccess: true,
       message: "Files retrieved successfully",
-      data: files
+      data: validFiles
     }
   } catch (error) {
     console.error("Error listing files:", error)

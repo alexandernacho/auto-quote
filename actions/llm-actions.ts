@@ -6,13 +6,11 @@
  * 
  * @dependencies
  * - openai: OpenAI API client
- * - geminiModel: Google Gemini API client
  * - various database actions for retrieving context data
  * - prompt templates for different document types
  * 
  * @notes
- * - Implements fallback mechanisms between different LLM providers
- * - Includes detailed validation and error handling
+ * - Implements detailed validation and error handling
  * - Provides client and product matching with confidence scoring
  */
 
@@ -22,7 +20,6 @@ import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
 import { getProductsByUserIdAction } from "@/actions/db/products-actions"
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
 import { SelectClient, SelectProduct } from "@/db/schema"
-import { geminiModel, generateGeminiContent } from "@/lib/llm/gemini"
 import { openai } from "@/lib/llm/openai"
 import { calculateStringSimilarity, createFallbackResponse, normalizePhone, validateLLMResponse } from "@/lib/llm/utils"
 import { buildClientExtractorPrompt } from "@/prompts/client-extractor"
@@ -72,19 +69,14 @@ export async function parseLLMTextAction(
       ? buildInvoiceParserPrompt(context)
       : buildQuoteParserPrompt(context)
     
-    // Try with OpenAI first, fallback to Gemini if it fails
+    // Use OpenAI for parsing
     let parsedData: LLMParseResult
     try {
       parsedData = await parseWithOpenAI(prompt, type)
-    } catch (openaiError) {
-      console.error("OpenAI parsing failed, falling back to Gemini:", openaiError)
-      try {
-        parsedData = await parseWithGemini(prompt, type)
-      } catch (geminiError) {
-        console.error("Gemini parsing failed:", geminiError)
-        // If both fail, return a basic fallback response
-        parsedData = createFallbackResponse(text, type)
-      }
+    } catch (error) {
+      console.error("OpenAI parsing failed:", error)
+      // Return a basic fallback response if OpenAI fails
+      parsedData = createFallbackResponse(text, type)
     }
     
     // Add raw text for reference
@@ -139,36 +131,6 @@ async function parseWithOpenAI(prompt: string, type: 'invoice' | 'quote'): Promi
   }
   
   return responseData as LLMParseResult
-}
-
-/**
- * Parse text using Google Gemini API
- * 
- * @param prompt Formatted prompt to send to Gemini
- * @param type Type of document (invoice or quote)
- * @returns Parsed result structure
- */
-async function parseWithGemini(prompt: string, type: 'invoice' | 'quote'): Promise<LLMParseResult> {
-  const responseText = await generateGeminiContent(prompt)
-  
-  // Try to extract JSON from the response, which might include additional text
-  const jsonMatch = responseText.match(/({[\s\S]*})/m)
-  const jsonText = jsonMatch ? jsonMatch[0] : responseText
-  
-  try {
-    const responseData = JSON.parse(jsonText)
-    
-    // Validate response structure
-    const validationResult = validateLLMResponse(responseData, type)
-    
-    if (!validationResult.isValid) {
-      throw new Error(`Invalid Gemini response: ${validationResult.errors.join(", ")}`)
-    }
-    
-    return responseData as LLMParseResult
-  } catch (error) {
-    throw new Error(`Failed to parse Gemini response as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
 }
 
 /**
@@ -352,8 +314,8 @@ export async function getMatchedProductSuggestionsAction(
 /**
  * Extract client information from unstructured text
  * 
- * @param text Text containing client information
- * @param userId User ID for context
+ * @param text Unstructured text input from the user
+ * @param userId User ID for retrieving client context
  * @returns Extracted client information
  */
 export async function extractClientInformationAction(
@@ -363,22 +325,22 @@ export async function extractClientInformationAction(
   try {
     // Get existing clients for context
     const clientsResult = await getClientsByUserIdAction(userId)
-    const existingClients = clientsResult.isSuccess ? clientsResult.data : []
+    const clients = clientsResult.isSuccess ? clientsResult.data : []
     
-    // Build prompt specifically for client extraction
+    // Build the prompt
     const prompt = buildClientExtractorPrompt({
       text,
-      existingClients
+      existingClients: clients
     })
     
-    // Try OpenAI first, fallback to Gemini
+    // Use OpenAI to extract client information
     try {
       const llmResponse = await openai.chat.completions.create({
         model: "gpt-4-turbo",
         messages: [
           {
             role: "system",
-            content: "You are an expert client information extractor."
+            content: "You are an expert at extracting client information from text."
           },
           {
             role: "user",
@@ -388,38 +350,33 @@ export async function extractClientInformationAction(
         response_format: { type: "json_object" }
       })
       
-      const responseData = JSON.parse(llmResponse.choices[0].message.content || "{}")
+      const responseText = llmResponse.choices[0].message.content || "{}"
+      const clientData = JSON.parse(responseText) as LLMExtractedClient
       
-      if (!responseData.name) {
-        throw new Error("Invalid response: missing client name")
+      // Validate that we have at least a name
+      if (!clientData.name) {
+        throw new Error("Invalid OpenAI response: missing client name")
       }
       
       return {
         isSuccess: true,
         message: "Client information extracted successfully",
-        data: responseData as LLMExtractedClient
+        data: clientData
       }
-    } catch (openaiError) {
-      // Fallback to Gemini
-      console.error("OpenAI client extraction failed, trying Gemini:", openaiError)
+    } catch (error) {
+      console.error("OpenAI client extraction failed:", error)
       
-      try {
-        const responseText = await generateGeminiContent(prompt)
-        const jsonMatch = responseText.match(/({[\s\S]*})/m)
-        const jsonText = jsonMatch ? jsonMatch[0] : responseText
-        const responseData = JSON.parse(jsonText)
-        
-        if (!responseData.name) {
-          throw new Error("Invalid Gemini response: missing client name")
+      // Return a basic client with just the text as the name
+      return {
+        isSuccess: true,
+        message: "Fallback client extraction",
+        data: {
+          name: text.substring(0, 100), // Use first 100 chars as name
+          email: "",
+          phone: "",
+          address: "",
+          taxNumber: ""
         }
-        
-        return {
-          isSuccess: true,
-          message: "Client information extracted successfully with Gemini",
-          data: responseData as LLMExtractedClient
-        }
-      } catch (geminiError) {
-        throw new Error(`Both LLM providers failed to extract client information: ${geminiError instanceof Error ? geminiError.message : 'Unknown error'}`)
       }
     }
   } catch (error) {

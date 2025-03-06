@@ -53,90 +53,95 @@ interface DocumentData {
  * @returns A Buffer containing the generated PDF
  */
 export async function generatePdf(data: DocumentData): Promise<Buffer> {
-  const { type, document, items, template, client, profile } = data
-  
-  // Create a new PDF document (A4 size)
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  })
-  
-  // Set document properties
-  doc.setProperties({
-    title: `${type === 'invoice' ? 'Invoice' : 'Quote'} ${type === 'invoice' 
-      ? (document as SelectInvoice).invoiceNumber 
-      : (document as SelectQuote).quoteNumber}`,
-    subject: `${profile.businessName} ${type === 'invoice' ? 'Invoice' : 'Quote'}`,
-    author: profile.businessName,
-    creator: 'Smart Invoice WebApp'
-  })
-  
-  // Apply branding colors from template
-  const primaryColor = hexToRgb(template.primaryColor)
-  const secondaryColor = hexToRgb(template.secondaryColor)
-  
-  // Add header with logo and business information
-  await addHeader(doc, profile, template, type, document, primaryColor)
-  
-  // Add client information section
-  addClientSection(doc, client, primaryColor)
-  
-  // Add document information section
-  addDocumentInfo(doc, type, document, primaryColor)
-  
-  // Add items table
-  addItemsTable(doc, items, primaryColor, secondaryColor)
-  
-  // Add totals section
-  addTotalsSection(doc, document, primaryColor, type)
-  
-  // Add notes section
-  if (document.notes) {
-    doc.setFontSize(10)
-    doc.setTextColor(0, 0, 0)
-    doc.text('Notes:', 15, doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : 180)
-    doc.setFontSize(9)
-    doc.text(document.notes, 15, doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 15 : 185, {
-      maxWidth: 180
+  try {
+    const { type, document, items, template, client, profile } = data
+    
+    // Create a new PDF document (A4 size)
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
     })
-  }
-  
-  // Add terms and conditions
-  if (document.termsAndConditions) {
-    const yPos = doc.lastAutoTable?.finalY 
-      ? doc.lastAutoTable.finalY + (document.notes ? 25 : 10) 
-      : document.notes ? 195 : 180
-    doc.setFontSize(10)
-    doc.setTextColor(0, 0, 0)
-    doc.text('Terms and Conditions:', 15, yPos)
-    doc.setFontSize(9)
-    doc.text(document.termsAndConditions, 15, yPos + 5, {
-      maxWidth: 180
+    
+    // Set document properties
+    doc.setProperties({
+      title: `${type === 'invoice' ? 'Invoice' : 'Quote'} ${type === 'invoice' 
+        ? (document as SelectInvoice).invoiceNumber 
+        : (document as SelectQuote).quoteNumber}`,
+      subject: `${profile.businessName} ${type === 'invoice' ? 'Invoice' : 'Quote'}`,
+      author: profile.businessName,
+      creator: 'Smart Invoice WebApp'
     })
+    
+    // Apply branding colors from template
+    const primaryColor = hexToRgb(template.primaryColor)
+    const secondaryColor = hexToRgb(template.secondaryColor)
+    
+    // Add header with logo and business information
+    await addHeader(doc, profile, template, type, document, primaryColor)
+    
+    // Add client information section
+    addClientSection(doc, client, primaryColor)
+    
+    // Add document information section
+    addDocumentInfo(doc, type, document, primaryColor)
+    
+    // Add items table
+    addItemsTable(doc, items, primaryColor, secondaryColor)
+    
+    // Add totals section
+    addTotalsSection(doc, document, primaryColor, type)
+    
+    // Add notes section
+    if (document.notes) {
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Notes:', 15, doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : 180)
+      doc.setFontSize(9)
+      doc.text(document.notes, 15, doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 15 : 185, {
+        maxWidth: 180
+      })
+    }
+    
+    // Add terms and conditions
+    if (document.termsAndConditions) {
+      const yPos = doc.lastAutoTable?.finalY 
+        ? doc.lastAutoTable.finalY + (document.notes ? 25 : 10) 
+        : document.notes ? 195 : 180
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Terms and Conditions:', 15, yPos)
+      doc.setFontSize(9)
+      doc.text(document.termsAndConditions, 15, yPos + 5, {
+        maxWidth: 180
+      })
+    }
+    
+    // Add payment instructions (for invoices)
+    if (type === 'invoice' && profile.paymentInstructions) {
+      const yPos = doc.lastAutoTable?.finalY 
+        ? doc.lastAutoTable.finalY + 
+          (document.notes ? 25 : 10) + 
+          (document.termsAndConditions ? 20 : 0)
+        : 210
+      doc.setFontSize(10)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Payment Instructions:', 15, yPos)
+      doc.setFontSize(9)
+      doc.text(profile.paymentInstructions, 15, yPos + 5, {
+        maxWidth: 180
+      })
+    }
+    
+    // Add footer
+    addFooter(doc, profile, template)
+    
+    // Convert the PDF to a buffer and return
+    return Buffer.from(doc.output('arraybuffer'))
+  } catch (error) {
+    console.error('Error in PDF generation:', error)
+    throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : String(error)}`)
   }
-  
-  // Add payment instructions (for invoices)
-  if (type === 'invoice' && profile.paymentInstructions) {
-    const yPos = doc.lastAutoTable?.finalY 
-      ? doc.lastAutoTable.finalY + 
-        (document.notes ? 25 : 10) + 
-        (document.termsAndConditions ? 20 : 0)
-      : 210
-    doc.setFontSize(10)
-    doc.setTextColor(0, 0, 0)
-    doc.text('Payment Instructions:', 15, yPos)
-    doc.setFontSize(9)
-    doc.text(profile.paymentInstructions, 15, yPos + 5, {
-      maxWidth: 180
-    })
-  }
-  
-  // Add footer
-  addFooter(doc, profile, template)
-  
-  // Convert the PDF to a buffer and return
-  return Buffer.from(doc.output('arraybuffer'))
 }
 
 /**

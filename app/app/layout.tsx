@@ -21,15 +21,12 @@
  * - Redirects free users to pricing page for certain sections (premium features)
  */
 
-"use server"
-
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
-import { AppHeader } from "@/components/app/app-header"
-import { AppSidebar } from "@/components/sidebar/app-sidebar"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { AppLayoutWrapper } from "@/components/app/app-layout-wrapper"
 import { auth } from "@clerk/nextjs/server"
 import { Metadata } from "next"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 
 export const metadata: Metadata = {
   title: "Dashboard | Smart Invoice WebApp",
@@ -67,10 +64,10 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Get authenticated user
+  // Get authenticated user - this should now work with the middleware
   const { userId } = await auth()
-
-  // Redirect to login if not authenticated
+  
+  // This should never happen due to middleware, but just in case
   if (!userId) {
     return redirect("/login")
   }
@@ -84,9 +81,9 @@ export default async function AppLayout({
   }
 
   // Get current pathname for route-based logic
+  const headersList = await headers();
   const pathname = new URL(
-    // @ts-expect-error headers() is not typed correctly
-    headers().get("x-url") || "", 
+    headersList.get("x-url") || "", 
     "http://localhost"
   ).pathname
 
@@ -97,17 +94,5 @@ export default async function AppLayout({
     return redirect("/pricing")
   }
 
-  return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center px-6 border-b">
-          <AppHeader profile={profile} />
-        </header>
-        <main className="flex-1 p-6">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return <AppLayoutWrapper profile={profile}>{children}</AppLayoutWrapper>
 }

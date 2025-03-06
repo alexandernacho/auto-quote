@@ -30,7 +30,8 @@ import {
   Receipt,
   Settings,
   ShoppingBag,
-  Users
+  Users,
+  Beaker
 } from "lucide-react"
 
 import {
@@ -47,6 +48,18 @@ import { NavUser } from "./nav-user"
  * Main navigation items for the sidebar
  */
 const navigationItems = [
+  {
+    title: "Test Pages",
+    url: "/app/dashboard",
+    icon: Beaker,
+    items: [
+      { title: "Dashboard", url: "/app/dashboard" },
+      { title: "LLM Test", url: "/app/llm-test" },
+      { title: "Client Test", url: "/app/client-test" },
+      { title: "Document Test", url: "/app/document-test" },
+      { title: "Profile Test", url: "/app/profile-test" }
+    ]
+  },
   {
     title: "Dashboard",
     url: "/app/dashboard",

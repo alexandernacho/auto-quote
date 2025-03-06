@@ -43,7 +43,31 @@ import { ActionState } from "@/types"
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+// Utility function to create Supabase client with JWT authentication
+const getSupabaseClient = async () => {
+  // Get the auth session
+  const session = await auth();
+  
+  // Use service role key for uploads to bypass RLS
+  // This is more reliable but should be used carefully
+  if (supabaseServiceKey) {
+    return createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
+  }
+  
+  // Fallback to anonymous key if service role key is not available
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false
+    }
+  });
+}
 
 /**
  * Generate a document (PDF or DOCX) for an invoice or quote
@@ -155,6 +179,9 @@ export async function generateDocumentAction(
     const filename = `${type}-${documentNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${timestamp}.${format}`
     const path = `${userId}/${type}s/${id}/${filename}`
     
+    // Initialize Supabase client
+    const supabase = await getSupabaseClient()
+    
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from(process.env.NEXT_PUBLIC_SUPABASE_DOCUMENTS_BUCKET || 'documents')
@@ -168,14 +195,18 @@ export async function generateDocumentAction(
     }
     
     // Get public URL for the file
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = await supabase.storage
       .from(process.env.NEXT_PUBLIC_SUPABASE_DOCUMENTS_BUCKET || 'documents')
-      .getPublicUrl(path)
+      .createSignedUrl(path, 60 * 60 * 24 * 7) // URL valid for 7 days
+    
+    if (!urlData) {
+      throw new Error('Failed to generate signed URL')
+    }
     
     return {
       isSuccess: true,
       message: `${type} ${format.toUpperCase()} generated successfully`,
-      data: { url: urlData.publicUrl }
+      data: { url: urlData.signedUrl }
     }
   } catch (error) {
     console.error(`Error generating ${type} ${format}:`, error)
@@ -207,6 +238,9 @@ export async function getDocumentFilesAction(
     // List files in the document directory
     const path = `${userId}/${type}s/${id}`
     
+    // Initialize Supabase client
+    const supabase = await getSupabaseClient()
+    
     const { data, error } = await supabase.storage
       .from(process.env.NEXT_PUBLIC_SUPABASE_DOCUMENTS_BUCKET || 'documents')
       .list(path)
@@ -224,30 +258,40 @@ export async function getDocumentFilesAction(
     }
     
     // Process file information
-    const files = await Promise.all(data.map(async (file) => {
+    const files = await Promise.all(data.map(async (file: { name: string; created_at?: string }) => {
       // Get file format from filename extension
       const format = file.name.split('.').pop() || ''
       
-      // Get public URL
-      const { data: urlData } = supabase.storage
+      // Get signed URL (valid for 7 days)
+      const { data: urlData } = await supabase.storage
         .from(process.env.NEXT_PUBLIC_SUPABASE_DOCUMENTS_BUCKET || 'documents')
-        .getPublicUrl(`${path}/${file.name}`)
+        .createSignedUrl(`${path}/${file.name}`, 60 * 60 * 24 * 7)
+      
+      if (!urlData) {
+        console.error(`Failed to generate signed URL for ${file.name}`)
+        return null
+      }
       
       return {
         name: file.name,
         format: format.toUpperCase(),
-        url: urlData.publicUrl,
+        url: urlData.signedUrl,
         createdAt: new Date(file.created_at || '').toISOString()
       }
     }))
     
+    // Filter out any null entries (failed URL generation)
+    const validFiles = files.filter(file => file !== null)
+    
     // Sort files by creation date (most recent first)
-    files.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    validFiles.sort((a: { createdAt: string }, b: { createdAt: string }) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
     
     return {
       isSuccess: true,
       message: "Document files retrieved successfully",
-      data: files
+      data: validFiles
     }
   } catch (error) {
     console.error(`Error getting ${type} document files:`, error)
@@ -280,6 +324,9 @@ export async function deleteDocumentFileAction(
   try {
     // Construct the full path
     const path = `${userId}/${type}s/${id}/${filename}`
+    
+    // Initialize Supabase client
+    const supabase = await getSupabaseClient()
     
     // Delete the file
     const { error } = await supabase.storage

@@ -1,0 +1,1 @@
+# Supabase Bucket Setup Instructions
