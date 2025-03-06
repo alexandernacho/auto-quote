@@ -1,38 +1,35 @@
 /**
  * @file Quote parser prompt builder
  * @description 
- * Builds prompts for LLM to parse unstructured text into structured quote data.
- * Creates a detailed prompt with instructions and context for the LLM.
+ * Creates structured prompts for LLM to parse unstructured text into quote data.
+ * Includes context about the user's profile, existing clients, and products to improve extraction.
  * 
  * Key features:
- * - Generate prompts for quote parsing
- * - Include context about user's business, clients, and products
- * - Structure the expected output format
- * - Provide example inputs and outputs for better LLM performance
+ * - Builds detailed system prompts with context
+ * - Includes examples of structured output format
+ * - Provides guidance on confidence levels and clarification needs
  * 
  * @dependencies
- * - LLMParseContext: Context data for prompt generation
+ * - LLMParseContext: Type for parsing context
  * 
  * @notes
- * - The prompt includes user profile information to help with context
- * - Existing clients and products are provided to aid in matching
- * - Clear instructions are given about the expected output format
- * - Examples help guide the LLM to produce consistent results
- * - Similar to invoice parsing but with quote-specific fields and terminology
+ * - The prompt follows a similar structure to the invoice parser prompt
+ * - Uses quote-specific terminology and fields
+ * - Provides context about existing clients and products for better matching
  */
 
 import { LLMParseContext } from "@/types"
 
 /**
- * Build a prompt for quote parsing
+ * Builds a prompt for the quote parser LLM
  * 
- * @param context The context data including user text, profile, clients, and products
- * @returns Formatted prompt string for the LLM
+ * @param context - Parsing context including user text, profile, clients, and products
+ * @returns Structured prompt string for the LLM
  */
 export function buildQuoteParserPrompt(context: LLMParseContext): string {
   const { text, profile, clients, products } = context
   
-  // Start with the system instructions
+  // Start with the system prompt
   let prompt = `
 You are an expert quote parser for a business called "${profile.businessName}". Your task is to extract structured quote data from unstructured text.
 
@@ -57,49 +54,53 @@ Default Tax Rate: ${profile.defaultTaxRate || '0'}%
 
 EXISTING CLIENTS:
 ${clients.length > 0 
-  ? clients.map(client => {
-      return `- ${client.name} (ID: ${client.id})
-    ${client.email ? `Email: ${client.email}` : ''}
-    ${client.phone ? `Phone: ${client.phone}` : ''}
-    ${client.address ? `Address: ${client.address}` : ''}
-    ${client.taxNumber ? `Tax Number: ${client.taxNumber}` : ''}`
-    }).join('\n\n')
-  : 'No existing clients.'
-}
+  ? `The business has the following existing clients that you should try to match:
+${clients.map(client => `- ID: ${client.id}, Name: ${client.name}, Email: ${client.email || 'N/A'}, Phone: ${client.phone || 'N/A'}${client.taxNumber ? `, Tax Number: ${client.taxNumber}` : ''}`).join('\n')}`
+  : 'The business has no existing clients yet.'}
 
-EXISTING PRODUCTS/SERVICES:
+## EXISTING PRODUCTS/SERVICES
 ${products.length > 0
-  ? products.map(product => {
-      return `- ${product.name} (ID: ${product.id})
-    ${product.description ? `Description: ${product.description}` : ''}
-    Unit Price: ${product.unitPrice}
-    Tax Rate: ${product.taxRate}%
-    ${product.isRecurring ? `Recurring: ${product.recurrenceUnit || 'Yes'}` : ''}`
-    }).join('\n\n')
-  : 'No existing products/services.'
-}
+  ? `The business has the following existing products/services that you should try to match:
+${products.map(product => `- ID: ${product.id}, Name: ${product.name}, Description: ${product.description || 'N/A'}, Unit Price: ${product.unitPrice}, Tax Rate: ${product.taxRate}%`).join('\n')}`
+  : 'The business has no existing products/services yet.'}
 
-OUTPUT FORMAT:
-Provide the output as a JSON object with the following structure:
+## YOUR TASK
+Extract the following information from the text:
+1. Client information (name, email, phone, address, tax number)
+2. Quote items (description, quantity, unit price, tax rate)
+3. Quote details (issue date, valid until date, notes, discount)
+
+## SPECIAL INSTRUCTIONS
+- If you identify a client that matches an existing client, include the client ID.
+- If you identify a product that matches an existing product, include the product ID.
+- Calculate subtotal, tax amount, and total for each item.
+- Provide a confidence level for the client match (high, medium, low).
+- If any critical information is missing or ambiguous, set needsClarification to true and provide clarification questions.
+- For the validUntil date, default to 30 days from the issue date if not specified.
+
+## OUTPUT FORMAT
+Return a JSON object with the following structure:
+\`\`\`json
 {
   "client": {
-    "id": "optional-existing-client-id",
+    "id": "optional - include if matched to existing client",
     "name": "client name",
-    "email": "client email (if available)",
-    "phone": "client phone (if available)",
-    "address": "client address (if available)",
-    "taxNumber": "client tax number (if available)",
-    "confidence": "high/medium/low"
+    "email": "client email",
+    "phone": "client phone",
+    "address": "client address",
+    "taxNumber": "client tax number",
+    "confidence": "high|medium|low"
   },
   "items": [
     {
-      "productId": "optional-existing-product-id",
-      "description": "product or service description",
+      "productId": "optional - include if matched to existing product",
+      "description": "item description",
       "quantity": "quantity as string",
-      "unitPrice": "price per unit as string",
-      "taxRate": "tax rate percentage as string",
-      "subtotal": "calculated subtotal as string",
-      "total": "calculated total including tax as string"
+      "unitPrice": "unit price as string",
+      "taxRate": "tax rate as string (e.g., '10' for 10%)",
+      "taxAmount": "calculated tax amount",
+      "subtotal": "calculated subtotal (quantity * unitPrice)",
+      "total": "calculated total (subtotal + taxAmount)"
     }
   ],
   "document": {
@@ -161,8 +162,10 @@ EXAMPLE OUTPUT:
   "needsClarification": false,
   "clarificationQuestions": []
 }
+\`\`\`
 
-Now, analyze the user's text and provide a structured response:
+## INPUT TEXT
+${text}
 `
 
   return prompt
