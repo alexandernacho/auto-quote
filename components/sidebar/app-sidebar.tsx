@@ -5,19 +5,21 @@
 * Contains links to different sections of the app and user-related actions.
 * 
 * Key features:
-* Collapsible navigation with sections
-* Links to main app areas (dashboard, invoices, quotes, etc.)
-* User profile and settings access
-* Responsive design (collapses to icons on smaller screens)
+* - Collapsible navigation with sections
+* - Links to main app areas (dashboard, invoices, quotes, etc.)
+* - User profile and settings access
+* - Responsive design (collapses to icons on smaller screens)
 * 
 * @dependencies
-* components/ui/sidebar: For sidebar structure components
-* lucide-react: For navigation icons
-* NavMain, NavUser: Sub-components for specific navigation sections
+* - components/ui/sidebar: For sidebar structure components
+* - lucide-react: For navigation icons
+* - NavMain, NavUser: Sub-components for specific navigation sections
 * 
 * @notes
-* This is a client component to allow for interactive behaviors
-* Uses the SidebarMenu components from shadcn UI */
+* - This is a client component to allow for interactive behaviors
+* - Uses the SidebarMenu components from shadcn UI 
+*/
+
 "use client"
 
 import { 
@@ -95,16 +97,6 @@ const navigationItems = [
     items: [ 
       { title: "Profile", url: "/app/settings/profile" }, 
       { title: "Branding", url: "/app/settings/branding" } 
-    ] 
-  }, 
-  { 
-    title: "Billing", 
-    url: "/app/billing", 
-    icon: CreditCard, 
-    items: [ 
-      { title: "Subscription", url: "/app/billing" }, 
-      { title: "Payment History", url: "/app/billing/history" }, 
-      { title: "Upgrade", url: "/app/billing/upgrade" } 
     ] 
   }, 
   { 

@@ -14,6 +14,7 @@
  * - clerk/nextjs: For authentication
  * - components/sidebar/app-sidebar: For the main navigation sidebar
  * - components/ui/sidebar: For the sidebar container components
+ * - components/app/app-layout-wrapper: For the layout wrapper
  * 
  * @notes
  * - Protects all routes under the /app path
@@ -23,6 +24,8 @@
 
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
 import { AppLayoutWrapper } from "@/components/app/app-layout-wrapper"
+import { AppSidebar } from "@/components/sidebar/app-sidebar" 
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { auth } from "@clerk/nextjs/server"
 import { Metadata } from "next"
 import { redirect } from "next/navigation"
@@ -94,5 +97,9 @@ export default async function AppLayout({
     return redirect("/pricing")
   }
 
-  return <AppLayoutWrapper profile={profile}>{children}</AppLayoutWrapper>
+  return (
+    <div className="flex min-h-screen">
+      <AppLayoutWrapper profile={profile}>{children}</AppLayoutWrapper>
+    </div>
+  )
 }

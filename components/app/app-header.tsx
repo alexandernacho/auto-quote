@@ -39,7 +39,6 @@ import {
 import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
 import { UserButton } from "@clerk/nextjs"
 import { 
-  Bell, 
   FileText, 
   LifeBuoy, 
   MoreVertical, 
@@ -109,12 +108,6 @@ export function AppHeader({ profile }: AppHeaderProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        {/* Notifications Icon (placeholder for future feature) */}
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">Notifications</span>
-        </Button>
         
         {/* Subscription badge */}
         <Badge 

@@ -5,7 +5,6 @@
  * app layout, providing client-side interactivity and context.
  * 
  * Key features:
- * - App sidebar with navigation
  * - Header with user controls
  * - Main content area
  * - Client-side layout handling
@@ -23,6 +22,7 @@
 
 import { AppHeader } from "@/components/app/app-header"
 import { SelectProfile } from "@/db/schema"
+import { useEffect, useState } from "react"
 
 interface AppLayoutWrapperProps {
   children: React.ReactNode
@@ -42,10 +42,11 @@ export function AppLayoutWrapper({
   profile
 }: AppLayoutWrapperProps) {
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="flex h-16 shrink-0 items-center border-b px-6">
+    <div className="flex flex-col flex-1">
+      <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-background border-b px-6">
         <AppHeader profile={profile} />
       </header>
+      
       <main className="flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-6xl">
           {children}
