@@ -52,7 +52,7 @@ import { ManualInvoiceCreator } from "./_components/manual-invoice-creator"
 export default async function NewInvoicePage({
   searchParams
 }: {
-  searchParams: { clientId?: string }
+  searchParams: Promise<{ clientId?: string }>
 }) {
   // Get authenticated user
   const { userId } = await auth()
@@ -60,6 +60,9 @@ export default async function NewInvoicePage({
   if (!userId) {
     redirect("/sign-in")
   }
+  
+  // Await searchParams to get the clientId
+  const { clientId } = await searchParams
   
   // Initialize client and template
   let initialClient = null
@@ -72,7 +75,6 @@ export default async function NewInvoicePage({
   }
   
   // If clientId is provided in query params, fetch client data
-  const clientId = searchParams.clientId
   if (clientId) {
     const clientResult = await getClientByIdAction(clientId)
     if (clientResult.isSuccess && clientResult.data?.userId === userId) {

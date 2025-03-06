@@ -39,7 +39,7 @@ import { redirect } from "next/navigation"
 export default async function EditClientPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   // Get authenticated user ID
   const { userId } = await auth()
@@ -49,8 +49,11 @@ export default async function EditClientPage({
     return redirect("/login")
   }
   
+  // Await params to get the client ID
+  const { id } = await params
+  
   // Fetch client data
-  const clientResult = await getClientByIdAction(params.id)
+  const clientResult = await getClientByIdAction(id)
   
   // Redirect if client not found or doesn't belong to user
   if (!clientResult.isSuccess || !clientResult.data || clientResult.data.userId !== userId) {
