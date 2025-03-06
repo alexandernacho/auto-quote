@@ -1,56 +1,11 @@
-/**
- * @file Product form component
- * @description 
- * A form component for creating and editing product/service information.
- * Handles input validation, form submission, and error handling.
- * 
- * Key features:
- * - Create new products or edit existing ones
- * - Form validation with error messages
- * - Toggle for recurring services with conditional fields
- * - Responsive layout for different screen sizes
- * - Loading state during submission
- * 
- * @dependencies
- * - React Hook Form: For form state management and validation
- * - ShadCN UI components: For form inputs and styling
- * - Server actions: For database operations
- * 
- * @notes
- * - Client-side component to allow for interactive form features
- * - Uses controlled inputs with React Hook Form
- * - Implements custom validation rules for currency fields
- */
-
 "use client"
 
 import { createProductAction, updateProductAction } from "@/actions/db/products-actions"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from "@/components/ui/form"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/lib/hooks/use-toast"
@@ -62,72 +17,37 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-/**
- * Validation schema for product form
- * Includes conditional validation for recurring service fields
- */
+// Validation schema with numeric field refinement function
+const validateNumericField = (val: string) => {
+  if (!val) return true
+  const parsed = parseFloat(val)
+  return !isNaN(parsed) && parsed >= 0
+}
+
 const productFormSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
   description: z.string().optional(),
-  unitPrice: z.string().refine(
-    (val) => {
-      // Allow empty string to be handled by server default
-      if (!val) return true
-      // Check if value is numeric and >= 0
-      const parsed = parseFloat(val)
-      return !isNaN(parsed) && parsed >= 0
-    }, 
-    { message: "Price must be a positive number" }
-  ),
-  taxRate: z.string().refine(
-    (val) => {
-      // Allow empty string to be handled by server default
-      if (!val) return true
-      // Check if value is numeric and >= 0
-      const parsed = parseFloat(val)
-      return !isNaN(parsed) && parsed >= 0
-    }, 
-    { message: "Tax rate must be a positive number" }
-  ),
+  unitPrice: z.string().refine(validateNumericField, { message: "Price must be a positive number" }),
+  taxRate: z.string().refine(validateNumericField, { message: "Tax rate must be a positive number" }),
   isRecurring: z.boolean().default(false),
   recurrenceUnit: z.string().optional()
-    .refine(
-      (val) => {
-        // Only validate if a value is provided
-        if (!val) return true
-        return ["day", "week", "month", "year"].includes(val)
-      },
-      { message: "Please select a valid recurrence unit" }
-    )
+    .refine(val => !val || ["day", "week", "month", "year"].includes(val), 
+      { message: "Please select a valid recurrence unit" })
 })
 
-/**
- * Type for form values with validation
- */
 type ProductFormValues = z.infer<typeof productFormSchema>
 
-/**
- * Props for the ProductForm component
- */
 interface ProductFormProps {
   userId: string
   product?: SelectProduct
   onSuccess?: (product: SelectProduct) => void
 }
 
-/**
- * Form component for creating or editing a product/service
- * 
- * @param userId - The ID of the current user
- * @param product - Optional existing product data for editing
- * @param onSuccess - Optional callback function after successful submission
- */
 export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
-  // Set up form with default values and validation
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: {
@@ -140,72 +60,35 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
     }
   })
 
-  // Get isRecurring value to conditionally render recurrence fields
   const isRecurring = form.watch("isRecurring")
 
-  /**
-   * Handle form submission
-   * Creates a new product or updates an existing one
-   */
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true)
-
     try {
-      if (product) {
-        // Update existing product
-        const result = await updateProductAction(product.id, {
-          ...values,
-          userId
+      const action = product ? updateProductAction(product.id, { ...values, userId }) : createProductAction({ ...values, userId })
+      const result = await action
+      
+      if (result.isSuccess) {
+        toast({
+          title: "Success",
+          description: `Product ${product ? "updated" : "created"} successfully`
         })
-
-        if (result.isSuccess) {
-          toast({
-            title: "Success",
-            description: "Product updated successfully"
-          })
-          
-          if (onSuccess) {
-            onSuccess(result.data)
-          } else {
-            router.push(`/app/products/${result.data.id}`)
-            router.refresh()
-          }
+        
+        if (onSuccess) {
+          onSuccess(result.data)
         } else {
-          toast({
-            title: "Error",
-            description: result.message,
-            variant: "destructive"
-          })
+          router.push(`/app/products/${result.data.id}`)
+          router.refresh()
         }
       } else {
-        // Create new product
-        const result = await createProductAction({
-          ...values,
-          userId
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive"
         })
-
-        if (result.isSuccess) {
-          toast({
-            title: "Success",
-            description: "Product created successfully"
-          })
-          
-          if (onSuccess) {
-            onSuccess(result.data)
-          } else {
-            router.push(`/app/products/${result.data.id}`)
-            router.refresh()
-          }
-        } else {
-          toast({
-            title: "Error",
-            description: result.message,
-            variant: "destructive"
-          })
-        }
       }
     } catch (error) {
-      console.error("Error submitting product form:", error)
+      console.error(`Error ${product ? "updating" : "creating"} product:`, error)
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -221,15 +104,12 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
       <CardHeader>
         <CardTitle>{product ? "Edit Product" : "Add New Product"}</CardTitle>
         <CardDescription>
-          {product
-            ? "Update product/service information"
-            : "Enter product/service details"}
+          {product ? "Update product/service information" : "Enter product/service details"}
         </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            {/* Product name field - required */}
             <FormField
               control={form.control}
               name="name"
@@ -244,7 +124,6 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
-            {/* Description field - optional */}
             <FormField
               control={form.control}
               name="description"
@@ -266,7 +145,6 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
-            {/* Unit price field */}
             <FormField
               control={form.control}
               name="unitPrice"
@@ -293,7 +171,6 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
-            {/* Tax rate field */}
             <FormField
               control={form.control}
               name="taxRate"
@@ -322,7 +199,6 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
-            {/* Is recurring toggle */}
             <FormField
               control={form.control}
               name="isRecurring"
@@ -344,7 +220,6 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
               )}
             />
 
-            {/* Recurrence unit field - only shown if isRecurring is true */}
             {isRecurring && (
               <FormField
                 control={form.control}
@@ -362,15 +237,14 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="day">Daily</SelectItem>
-                        <SelectItem value="week">Weekly</SelectItem>
-                        <SelectItem value="month">Monthly</SelectItem>
-                        <SelectItem value="year">Yearly</SelectItem>
+                        {["day", "week", "month", "year"].map(unit => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit.charAt(0).toUpperCase() + unit.slice(1) + (unit === "day" ? "ly" : "ly")}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      How often this service recurs
-                    </FormDescription>
+                    <FormDescription>How often this service recurs</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -393,7 +267,7 @@ export function ProductForm({ userId, product, onSuccess }: ProductFormProps) {
                   {product ? "Updating..." : "Creating..."}
                 </>
               ) : (
-                <>{product ? "Update Product" : "Create Product"}</>
+                product ? "Update Product" : "Create Product"
               )}
             </Button>
           </CardFooter>
