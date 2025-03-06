@@ -1,21 +1,21 @@
 /**
- * @file LLM Results component for invoice creation
- * @description 
+ * @file LLM Results component
+ * @description
  * This component displays the parsed results from the LLM processing.
  * It shows structured data extracted from unstructured text in a user-friendly format.
- * 
+ *
  * Key features:
  * - Displays client information with confidence indicators
  * - Shows document details like dates and notes
  * - Presents line items in a formatted table
  * - Calculates and displays totals
  * - Provides visual indicators for confidence levels
- * 
+ *
  * @dependencies
  * - UI components: Badge, Card, Table
  * - lucide-react: For icons
  * - LLMParseResult: Type definition for parsed result
- * 
+ *
  * @notes
  * - Client component for interactive elements
  * - Uses helper functions for formatting currency and dates
@@ -23,7 +23,6 @@
  */
 
 "use client"
-
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -41,7 +40,7 @@ interface LLMResultsProps {
 
 /**
  * Component to display structured results from LLM parsing
- * 
+ *
  * @param result - The parsed LLM result data
  * @param type - The type of document ('invoice' or 'quote')
  * @returns JSX element displaying the parsed results
@@ -59,7 +58,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
       return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(dateString))
     } catch (error) { return dateString }
   }
-  
+
   /**
    * Format currency for display
    * @param value - Numeric string
@@ -71,7 +70,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
       return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(value))
     } catch (error) { return value }
   }
-  
+
   // Calculate totals
   const subtotal = result.items.reduce((total, item) => total + (parseFloat(item.subtotal || "0") || 0), 0)
   const taxAmount = result.items.reduce((total, item) => {
@@ -79,7 +78,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
     const itemTotal = parseFloat(item.total || "0") || 0
     return total + (itemTotal - itemSubtotal)
   }, 0)
-  
+
   /**
    * Get confidence badge by level
    * @param confidence - Confidence level string
@@ -95,7 +94,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
     const { bg, text, icon, label } = badges[level as keyof typeof badges]
     return <Badge className={`${bg} ${text} hover:${bg}`}>{icon}{label}</Badge>
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Client Information */}
@@ -129,7 +128,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
           </dl>
         </CardContent>
       </Card>
-      
+
       {/* Document Details */}
       <Card>
         <CardHeader>

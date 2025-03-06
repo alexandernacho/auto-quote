@@ -1,17 +1,13 @@
 /**
  * @file AI Invoice Creator client component
- * @description 
+ * @description
  * Client component for AI-assisted invoice creation.
  * Implements multi-step flow for LLM processing.
  */
 
 "use client"
-
-import { LLMInputForm } from "./llm-input-form"
-import { LLMProcessing } from "./llm-processing"
-import { LLMResults } from "./llm-results"
-import { useLLMProcessing } from "@/hooks/use-llm-processing"
-import { useState } from "react"
+import { LLMInputForm, LLMProcessing, LLMResults } from "@/components/app/llm"
+import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 
 interface AIInvoiceCreatorProps {
   userId: string
@@ -36,7 +32,7 @@ export function AIInvoiceCreator({
     handleParsedResult,
     handleReset
   } = useLLMProcessing()
-  
+
   return (
     <div className="space-y-4">
       {state === 'input' && (
@@ -64,4 +60,4 @@ export function AIInvoiceCreator({
       )}
     </div>
   )
-} 
+}

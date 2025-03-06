@@ -1,22 +1,21 @@
 /**
- * @file LLM Input Form component for invoice creation
- * @description 
+ * @file LLM Input Form component
+ * @description
  * This component provides a text input area for users to input unstructured text
- * to be processed by an LLM for invoice generation. It's specifically placed in the
- * invoice creation workflow.
- * 
+ * to be processed by an LLM. It's used in both invoice and quote creation workflows.
+ *
  * Key features:
  * - Large text area for free-form input
  * - Processing state handling with loading indicator
  * - Example placeholder text to guide users
  * - Clear button to reset input
  * - Error handling with toast notifications
- * 
+ *
  * @dependencies
  * - parseLLMTextAction: Server action to process text with LLM
  * - Toast: For showing success/error messages
  * - Button, Card, Textarea: UI components
- * 
+ *
  * @notes
  * - This is a client component that submits data to a server action
  * - Shows loading state while processing text
@@ -24,16 +23,15 @@
  */
 
 "use client"
-
 import { parseLLMTextAction } from "@/actions/llm-actions"
 import { Button } from "@/components/ui/button"
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/lib/hooks/use-toast"
@@ -52,29 +50,29 @@ interface LLMInputFormProps {
 
 /**
  * Form component for inputting unstructured text to be processed by LLM
- * 
+ *
  * @param type - The type of document to generate ('invoice' or 'quote')
  * @param userId - The user ID for context in LLM processing
  * @param onParsedResult - Callback function when text is successfully parsed
  * @returns JSX element with text input form
  */
-export function LLMInputForm({ 
-  type, 
-  userId, 
-  onParsedResult 
+export function LLMInputForm({
+  type,
+  userId,
+  onParsedResult
 }: LLMInputFormProps) {
   // Component state
   const [text, setText] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const { toast } = useToast()
-  
+
   /**
    * Handle form submission to process text with LLM
    * @param e - Form event
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validate input
     if (!text.trim()) {
       toast({
@@ -84,10 +82,10 @@ export function LLMInputForm({
       })
       return
     }
-    
+
     // Begin processing
     setIsProcessing(true)
-    
+
     try {
       // Call the server action to parse text
       const result = await parseLLMTextAction(text, userId, type)
@@ -122,19 +120,19 @@ export function LLMInputForm({
       setIsProcessing(false)
     }
   }
-  
+
   /**
    * Clear the input text
    */
   const handleClear = () => {
     setText("")
   }
-  
+
   // Get placeholder text based on document type
   const placeholderText = type === 'invoice'
     ? "Example: Create an invoice for John Doe for 5 hours of web development at $100/hour, plus $50 for hosting fees. Include 8% tax."
     : "Example: Create a quote for ABC Company for website redesign including 10 pages at $200 per page and SEO setup for $500. The quote should be valid for 30 days."
-  
+
   return (
     <Card>
       <CardHeader>
@@ -154,16 +152,16 @@ export function LLMInputForm({
           />
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button 
+          <Button
             type="button"
-            variant="outline" 
-            onClick={handleClear} 
+            variant="outline"
+            onClick={handleClear}
             disabled={isProcessing || !text}
           >
             Clear
           </Button>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={isProcessing || !text}
           >
             {isProcessing ? (

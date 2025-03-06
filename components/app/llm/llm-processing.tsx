@@ -1,22 +1,22 @@
 /**
- * @file LLM Processing component for invoice creation
- * @description 
+ * @file LLM Processing component
+ * @description
  * This component handles the processing of text with LLM, transforming
- * unstructured input into structured data for invoices. It's placed in
- * the invoice creation workflow.
- * 
+ * unstructured input into structured data for invoices or quotes. It manages
+ * the multi-step workflow of LLM processing.
+ *
  * Key features:
  * - Step-by-step workflow for LLM processing
  * - Handles interactive clarification steps if needed
  * - Displays matched clients and products with confidence indicators
  * - Provides editing capabilities for LLM-generated data
- * 
+ *
  * @dependencies
  * - LLMInputForm: For text input
  * - LLMResults: For displaying parsed results
  * - useLLMProcessing: Hook for managing LLM processing state
  * - various UI components for display and interaction
- * 
+ *
  * @notes
  * - This is a client component that orchestrates the LLM processing flow
  * - Uses step-based UI to guide users through the process
@@ -24,18 +24,17 @@
  */
 
 "use client"
-
 import { Button } from "@/components/ui/button"
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -45,7 +44,6 @@ import { useToast } from "@/lib/hooks/use-toast"
 import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 import { LLMParseResult } from "@/types"
 import { AlertCircle, Check, Edit, HelpCircle, Loader2, RotateCcw } from "lucide-react"
-import { useState } from "react"
 import { LLMInputForm } from "./llm-input-form"
 import { LLMResults } from "./llm-results"
 
@@ -61,7 +59,7 @@ interface LLMProcessingProps {
 
 /**
  * Component for processing text with LLM in a multi-step workflow
- * 
+ *
  * @param userId - The user ID for context in LLM processing
  * @param type - The type of document to generate ('invoice' or 'quote')
  * @param onComplete - Callback function when processing is complete
@@ -85,9 +83,9 @@ export function LLMProcessing({
     handleEditResult,
     handleReset
   } = useLLMProcessing()
-  
+
   const { toast } = useToast()
-  
+
   /**
    * Handle final completion of LLM processing
    */
@@ -100,10 +98,10 @@ export function LLMProcessing({
       })
       return
     }
-    
+
     onComplete(parseResult)
   }
-  
+
   // Render different content based on current state
   return (
     <div className="space-y-6">
@@ -115,7 +113,7 @@ export function LLMProcessing({
           onParsedResult={handleParsedResult} 
         />
       )}
-      
+
       {/* Clarification Step - shown if LLM needs more information */}
       {state === 'clarification' && parseResult?.needsClarification && (
         <Card>
