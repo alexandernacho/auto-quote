@@ -11,9 +11,19 @@
  * @notes
  * - Uses environment variable DATABASE_URL for connection string
  * - Imports all schema tables and makes them available through the db object
+ * - Schema object provides a central reference to all database tables
  */
 
-import { profilesTable, clientsTable, productsTable, templatesTable, invoicesTable, invoiceItemsTable, quotesTable, quoteItemsTable } from "@/db/schema"
+import { 
+  profilesTable, 
+  clientsTable, 
+  productsTable, 
+  templatesTable, 
+  invoicesTable, 
+  invoiceItemsTable, 
+  quotesTable, 
+  quoteItemsTable 
+} from "@/db/schema"
 import { config } from "dotenv"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
@@ -33,8 +43,13 @@ const schema = {
   quoteItems: quoteItemsTable
 }
 
+// Validate database connection URL
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set")
+}
+
 // Initialize postgres client with the database URL from environment variables
-const client = postgres(process.env.DATABASE_URL!)
+const client = postgres(process.env.DATABASE_URL)
 
 // Export configured Drizzle instance with schema
 export const db = drizzle(client, { schema })

@@ -4,12 +4,17 @@
  * Type definitions for LLM parsing functionality.
  * Defines the structure of data sent to and received from LLM models.
  * 
+ * @dependencies
+ * - SelectClient, SelectProduct: Schema types imported from database schema
+ * - ConfidenceLevel: Shared domain type for confidence indicators
+ * 
  * @notes
  * - These types are used across the application to ensure consistent data structures
  * - LLMParseResult is the main result type returned by the LLM parsing functions
  */
 
 import { SelectClient, SelectProduct } from "@/db/schema"
+import { ConfidenceLevel } from "./domain-types"
 
 /**
  * Client information extracted by the LLM
@@ -22,7 +27,7 @@ export interface LLMExtractedClient {
   phone?: string          // Optional phone number
   address?: string        // Optional address
   taxNumber?: string      // Optional tax/VAT number
-  confidence?: 'high' | 'medium' | 'low' // Confidence level of the match
+  confidence?: ConfidenceLevel // Confidence level of the match
 }
 
 /**
@@ -77,7 +82,7 @@ export interface LLMParseContext {
  */
 export interface ClientMatchResult {
   matches: SelectClient[]
-  confidence: 'high' | 'medium' | 'low'
+  confidence: ConfidenceLevel
 }
 
 /**
@@ -85,7 +90,7 @@ export interface ClientMatchResult {
  */
 export interface ProductMatchResult {
   matches: SelectProduct[]
-  confidence: 'high' | 'medium' | 'low'
+  confidence: ConfidenceLevel
 }
 
 /**
@@ -95,3 +100,30 @@ export interface ValidationResult {
   isValid: boolean
   errors: string[]
 }
+
+/**
+ * Options for LLM processing
+ */
+export interface LLMProcessingOptions {
+  temperature?: number        // Controls randomness (0.0 to 1.0)
+  maxTokens?: number          // Maximum tokens to generate
+  stop?: string[]             // Sequences that trigger early stopping
+  provider?: 'openai' | 'gemini' // LLM provider to use
+  model?: string              // Specific model to use
+  stream?: boolean            // Whether to stream the response
+}
+
+/**
+ * Structured prompt template component
+ */
+export interface PromptTemplate {
+  systemPrompt: string        // Instructions for the LLM
+  userPrompt: string          // User query template
+  exampleInputs?: any[]       // Example inputs for few-shot learning
+  exampleOutputs?: any[]      // Example outputs for few-shot learning
+}
+
+/**
+ * Streaming response handler
+ */
+export type StreamHandler = (chunk: string, isComplete: boolean) => void

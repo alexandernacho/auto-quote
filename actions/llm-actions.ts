@@ -28,7 +28,15 @@ import { calculateStringSimilarity, createFallbackResponse, normalizePhone, vali
 import { buildClientExtractorPrompt } from "@/prompts/client-extractor"
 import { buildInvoiceParserPrompt } from "@/prompts/invoice-parser"
 import { buildQuoteParserPrompt } from "@/prompts/quote-parser"
-import { ActionState, ClientMatchResult, LLMExtractedClient, LLMParseContext, LLMParseResult, ProductMatchResult } from "@/types"
+import { 
+  ActionState, 
+  ClientMatchResult, 
+  ConfidenceLevel,
+  LLMExtractedClient, 
+  LLMParseContext, 
+  LLMParseResult, 
+  ProductMatchResult 
+} from "@/types"
 
 /**
  * Main action for parsing unstructured text into structured invoice or quote data
@@ -194,7 +202,7 @@ export async function getMatchedClientSuggestionsAction(
       }
       
       // Tax number match
-      if (partialClient.taxNumber && client.taxNumber && partialClient.taxNumber === client.taxNumber) {
+if (partialClient.taxNumber && client.taxNumber && partialClient.taxNumber === client.taxNumber) {
         score += 4
       }
       
@@ -211,7 +219,7 @@ export async function getMatchedClientSuggestionsAction(
       .map(item => item.client)
     
     // Determine confidence level
-    let confidence: 'high' | 'medium' | 'low' = 'low'
+    let confidence: ConfidenceLevel = 'low'
     
     if (topMatches.length > 0) {
       const topScore = scoredClients[0].score
@@ -290,7 +298,7 @@ export async function getMatchedProductSuggestionsAction(
       .map(item => item.product)
     
     // Determine confidence level
-    let confidence: 'high' | 'medium' | 'low' = 'low'
+    let confidence: ConfidenceLevel = 'low'
     
     if (topMatches.length > 0) {
       const topScore = scoredProducts[0].score

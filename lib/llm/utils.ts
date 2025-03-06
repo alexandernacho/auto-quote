@@ -5,7 +5,7 @@
  * Includes helper functions for prompt building, response validation, and text similarity.
  * 
  * @dependencies
- * - various type definitions from "@/types"
+ * - LLMParseResult, ValidationResult: Type definitions for LLM parsing
  * 
  * @notes
  * - calculateStringSimilarity uses Levenshtein distance for fuzzy matching
@@ -177,4 +177,65 @@ export function createFallbackResponse(text: string, type: 'invoice' | 'quote'):
     ],
     rawText: text
   }
+}
+
+/**
+ * Format a currency value as a string with proper formatting
+ * 
+ * @param value The numeric value to format
+ * @param currencyCode ISO currency code (defaults to USD)
+ * @returns Formatted currency string
+ */
+export function formatCurrency(
+  value: string | number,
+  currencyCode: string = 'USD'
+): string {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+  
+  if (isNaN(numValue)) return '$0.00'
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currencyCode
+  }).format(numValue)
+}
+
+/**
+ * Format a date string into a localized representation
+ * 
+ * @param dateStr Date string in ISO format
+ * @param format Format style to use (defaults to medium)
+ * @returns Formatted date string
+ */
+export function formatDate(
+  dateStr: string | Date,
+  format: 'short' | 'medium' | 'long' = 'medium'
+): string {
+  try {
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
+    
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: format === 'short' ? 'numeric' : format === 'medium' ? 'short' : 'long',
+      day: 'numeric'
+    }
+    
+    return new Intl.DateTimeFormat('en-US', options).format(date)
+  } catch (e) {
+    return 'Invalid date'
+  }
+}
+
+/**
+ * Truncate text to a specified length with ellipsis
+ * 
+ * @param text Text to truncate
+ * @param length Maximum length (defaults to 100)
+ * @returns Truncated text with ellipsis if needed
+ */
+export function truncateText(text: string, length: number = 100): string {
+  if (!text) return ''
+  if (text.length <= length) return text
+  
+  return text.substring(0, length) + '...'
 }

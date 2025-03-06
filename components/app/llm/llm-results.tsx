@@ -15,6 +15,7 @@
  * - UI components: Badge, Card, Table
  * - lucide-react: For icons
  * - LLMParseResult: Type definition for parsed result
+ * - ConfidenceLevel: Type for confidence levels
  *
  * @notes
  * - Client component for interactive elements
@@ -27,7 +28,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { LLMParseResult } from "@/types"
+import { ConfidenceLevel, DocumentType, LLMParseResult } from "@/types"
+import { formatCurrency, formatDate } from "@/lib/llm/utils"
 import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
 
 /**
@@ -35,7 +37,7 @@ import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
  */
 interface LLMResultsProps {
   result: LLMParseResult
-  type: 'invoice' | 'quote'
+  type: DocumentType
 }
 
 /**
@@ -46,31 +48,6 @@ interface LLMResultsProps {
  * @returns JSX element displaying the parsed results
  */
 export function LLMResults({ result, type }: LLMResultsProps) {
-  // Format helpers
-  /**
-   * Format date for display
-   * @param dateString - ISO date string
-   * @returns Formatted date string or fallback
-   */
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "Not specified"
-    try {
-      return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(dateString))
-    } catch (error) { return dateString }
-  }
-
-  /**
-   * Format currency for display
-   * @param value - Numeric string
-   * @returns Formatted currency string
-   */
-  const formatCurrency = (value?: string) => {
-    if (!value) return "$0.00"
-    try {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(value))
-    } catch (error) { return value }
-  }
-
   // Calculate totals
   const subtotal = result.items.reduce((total, item) => total + (parseFloat(item.subtotal || "0") || 0), 0)
   const taxAmount = result.items.reduce((total, item) => {
@@ -84,7 +61,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
    * @param confidence - Confidence level string
    * @returns Badge JSX element with appropriate styling
    */
-  const getConfidenceBadge = (confidence?: string) => {
+  const getConfidenceBadge = (confidence?: ConfidenceLevel) => {
     const badges = {
       high: { bg: "bg-green-100", text: "text-green-800", icon: <CheckCircle className="mr-1 h-3 w-3" />, label: "High Confidence" },
       medium: { bg: "bg-yellow-100", text: "text-yellow-800", icon: <HelpCircle className="mr-1 h-3 w-3" />, label: "Medium Confidence" },
@@ -102,7 +79,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Client Information</CardTitle>
-            {getConfidenceBadge(result.client.confidence)}
+            {getConfidenceBadge(result.client.confidence as ConfidenceLevel)}
           </div>
           <CardDescription>Review the identified client details</CardDescription>
         </CardHeader>
@@ -139,14 +116,17 @@ export function LLMResults({ result, type }: LLMResultsProps) {
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
               <dt className="text-sm font-medium text-muted-foreground">Issue Date</dt>
-              <dd className="text-sm">{formatDate(result.document.issueDate)}</dd>
+              <dd className="text-sm">{formatDate(result.document.issueDate || new Date())}</dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-muted-foreground">
                 {type === 'invoice' ? 'Due Date' : 'Valid Until'}
               </dt>
               <dd className="text-sm">
-                {formatDate(type === 'invoice' ? result.document.dueDate : result.document.validUntil)}
+                {formatDate(type === 'invoice' 
+                  ? result.document.dueDate || new Date(Date.now() + 30*24*60*60*1000) 
+                  : result.document.validUntil || new Date(Date.now() + 30*24*60*60*1000)
+                )}
               </dd>
             </div>
             {result.document.notes && (
