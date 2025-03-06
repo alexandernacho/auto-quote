@@ -241,24 +241,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Test Links Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Test Pages</CardTitle>
-          <CardDescription>
-            Access test pages for development and demonstration purposes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <TestPageLink href="/app/llm-test" title="LLM Test" description="Test the LLM integration" />
-            <TestPageLink href="/app/client-test" title="Client Test" description="Test client management" />
-            <TestPageLink href="/app/document-test" title="Document Test" description="Test document generation" />
-            <TestPageLink href="/app/profile-test" title="Profile Test" description="Test profile management" />
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
@@ -382,27 +364,5 @@ function EmptyState({
       <p className="text-muted-foreground">{message}</p>
       {action}
     </div>
-  )
-}
-
-/**
- * Test page link component for the test pages section
- */
-function TestPageLink({ 
-  href, 
-  title, 
-  description 
-}: { 
-  href: string
-  title: string
-  description: string
-}) {
-  return (
-    <Link href={href} className="block">
-      <div className="rounded-lg border p-4 transition-colors hover:bg-muted">
-        <h3 className="font-medium">{title}</h3>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-    </Link>
   )
 }
