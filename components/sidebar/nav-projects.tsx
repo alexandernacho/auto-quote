@@ -56,8 +56,10 @@ export function NavProjects({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuAction showOnHover>
-                  <MoreHorizontal />
-                  <span className="sr-only">More</span>
+                  <span className="flex items-center">
+                    <MoreHorizontal />
+                    <span className="sr-only">More</span>
+                  </span>
                 </SidebarMenuAction>
               </DropdownMenuTrigger>
               <DropdownMenuContent
