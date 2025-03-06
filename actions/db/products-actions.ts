@@ -7,7 +7,7 @@
  * Responsibilities:
  * - Provide create, read, update, and delete functionality for Products
  * - Return ActionState<T> responses indicating success/failure
- * - Handle basic error logging
+ * - Handle error logging and reporting with standardized patterns
  *
  * Exports:
  * - createProductAction
@@ -22,12 +22,13 @@
  * - InsertProduct, SelectProduct from "@/db/schema/products-schema"
  * - db from "@/db/db"
  * - ActionState from "@/types"
- * - The code pattern is consistent with other server action files (e.g. clients-actions.ts)
+ * - handleActionError, createSuccessResponse for standardized error handling
  *
  * Edge cases & error handling:
  * - If userId is invalid or not found, we return isSuccess=false
  * - If product not found on update or delete, return isSuccess=false
- * - Basic error logs to console.error
+ * - All database errors are caught and handled consistently
+ * - Standardized error reporting with context information
  *
  * @notes
  * - Additional filtering methods can be added if needed (e.g. search by name).
@@ -38,6 +39,7 @@
 
 import { db } from "@/db/db"
 import { productsTable, InsertProduct, SelectProduct } from "@/db/schema/products-schema"
+import { handleActionError, createSuccessResponse } from "@/lib/error-handling"
 import { ActionState } from "@/types"
 import { eq, desc } from "drizzle-orm"
 
@@ -65,14 +67,18 @@ export async function createProductAction(
 ): Promise<ActionState<SelectProduct>> {
   try {
     const [newProduct] = await db.insert(productsTable).values(data).returning()
-    return {
-      isSuccess: true,
-      message: "Product created successfully",
-      data: newProduct
-    }
+    
+    return createSuccessResponse(
+      newProduct,
+      "Product created successfully",
+      { operation: 'create', entityName: 'product' }
+    )
   } catch (error) {
-    console.error("Error creating product:", error)
-    return { isSuccess: false, message: "Failed to create product" }
+    return handleActionError(error, {
+      actionName: 'createProductAction',
+      entityName: 'product',
+      operation: 'create'
+    })
   }
 }
 
@@ -98,14 +104,18 @@ export async function getProductsByUserIdAction(
       orderBy: [desc(productsTable.updatedAt)]
     })
 
-    return {
-      isSuccess: true,
-      message: "Products retrieved successfully",
-      data: products
-    }
+    return createSuccessResponse(
+      products,
+      "Products retrieved successfully",
+      { operation: 'read', entityName: 'products' }
+    )
   } catch (error) {
-    console.error("Error retrieving products:", error)
-    return { isSuccess: false, message: "Failed to get products" }
+    return handleActionError(error, {
+      actionName: 'getProductsByUserIdAction',
+      entityName: 'products',
+      operation: 'read',
+      entityId: userId
+    })
   }
 }
 
@@ -134,14 +144,18 @@ export async function getProductByIdAction(
       return { isSuccess: false, message: "Product not found" }
     }
 
-    return {
-      isSuccess: true,
-      message: "Product retrieved successfully",
-      data: product
-    }
+    return createSuccessResponse(
+      product,
+      "Product retrieved successfully",
+      { operation: 'read', entityName: 'product' }
+    )
   } catch (error) {
-    console.error("Error getting product by id:", error)
-    return { isSuccess: false, message: "Failed to get product" }
+    return handleActionError(error, {
+      actionName: 'getProductByIdAction',
+      entityName: 'product',
+      operation: 'read',
+      entityId: id
+    })
   }
 }
 
@@ -178,14 +192,18 @@ export async function updateProductAction(
       return { isSuccess: false, message: "Product not found or not updated" }
     }
 
-    return {
-      isSuccess: true,
-      message: "Product updated successfully",
-      data: updatedProduct
-    }
+    return createSuccessResponse(
+      updatedProduct,
+      "Product updated successfully",
+      { operation: 'update', entityName: 'product' }
+    )
   } catch (error) {
-    console.error("Error updating product:", error)
-    return { isSuccess: false, message: "Failed to update product" }
+    return handleActionError(error, {
+      actionName: 'updateProductAction',
+      entityName: 'product',
+      operation: 'update',
+      entityId: id
+    })
   }
 }
 
@@ -212,13 +230,17 @@ export async function deleteProductAction(
       return { isSuccess: false, message: "Product not found or already deleted" }
     }
 
-    return {
-      isSuccess: true,
-      message: "Product deleted successfully",
-      data: undefined
-    }
+    return createSuccessResponse(
+      undefined,
+      "Product deleted successfully",
+      { operation: 'delete', entityName: 'product' }
+    )
   } catch (error) {
-    console.error("Error deleting product:", error)
-    return { isSuccess: false, message: "Failed to delete product" }
+    return handleActionError(error, {
+      actionName: 'deleteProductAction',
+      entityName: 'product',
+      operation: 'delete',
+      entityId: id
+    })
   }
 }

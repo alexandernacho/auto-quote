@@ -10,19 +10,23 @@
  * - Getting public URLs for files
  * - Deleting files
  * - Validation of file uploads
+ * - Standardized error handling
  * 
  * @dependencies
  * - Supabase: For storage operations
  * - ActionState type: For consistent return values
+ * - handleActionError, createSuccessResponse: For standardized error handling
  * 
  * @notes
  * - Files are organized by user ID to maintain separation and security
  * - File size and type validation is performed before upload
  * - Public URLs can be generated for files that need to be accessed directly
+ * - Uses standardized error handling patterns for consistency
  */
 
 "use server"
 
+import { handleActionError, createSuccessResponse } from "@/lib/error-handling"
 import { ActionState } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { auth } from "@clerk/nextjs/server"
@@ -141,14 +145,17 @@ export async function uploadLogoStorage(
       throw new Error('Failed to generate signed URL')
     }
     
-    return {
-      isSuccess: true,
-      message: "Logo uploaded successfully",
-      data: { url: urlData.signedUrl }
-    }
+    return createSuccessResponse(
+      { url: urlData.signedUrl },
+      "Logo uploaded successfully",
+      { operation: 'create', entityName: 'logo' }
+    )
   } catch (error) {
-    console.error("Error uploading logo:", error)
-    return { isSuccess: false, message: "Failed to upload logo" }
+    return handleActionError(error, {
+      actionName: 'uploadLogoStorage',
+      entityName: 'logo',
+      operation: 'create'
+    })
   }
 }
 
@@ -208,14 +215,18 @@ export async function uploadDocumentStorage(
       throw new Error('Failed to generate signed URL')
     }
     
-    return {
-      isSuccess: true,
-      message: "Document uploaded successfully",
-      data: { url: urlData.signedUrl }
-    }
+    return createSuccessResponse(
+      { url: urlData.signedUrl },
+      "Document uploaded successfully",
+      { operation: 'create', entityName: 'document' }
+    )
   } catch (error) {
-    console.error("Error uploading document:", error)
-    return { isSuccess: false, message: "Failed to upload document" }
+    return handleActionError(error, {
+      actionName: 'uploadDocumentStorage',
+      entityName: 'document',
+      operation: 'create',
+      entityId: documentId
+    })
   }
 }
 
@@ -257,14 +268,17 @@ export async function deleteFileStorage(
       throw error
     }
     
-    return {
-      isSuccess: true,
-      message: "File deleted successfully",
-      data: undefined
-    }
+    return createSuccessResponse(
+      undefined,
+      "File deleted successfully",
+      { operation: 'delete', entityName: 'file' }
+    )
   } catch (error) {
-    console.error("Error deleting file:", error)
-    return { isSuccess: false, message: "Failed to delete file" }
+    return handleActionError(error, {
+      actionName: 'deleteFileStorage',
+      entityName: 'file',
+      operation: 'delete'
+    })
   }
 }
 
@@ -325,13 +339,16 @@ export async function listFilesStorage(
     // Filter out any null entries (failed URL generation)
     const validFiles = files.filter(file => file !== null)
     
-    return {
-      isSuccess: true,
-      message: "Files retrieved successfully",
-      data: validFiles
-    }
+    return createSuccessResponse(
+      validFiles as Array<{ name: string, path: string, url: string }>,
+      "Files retrieved successfully",
+      { operation: 'read', entityName: 'files' }
+    )
   } catch (error) {
-    console.error("Error listing files:", error)
-    return { isSuccess: false, message: "Failed to list files" }
+    return handleActionError(error, {
+      actionName: 'listFilesStorage',
+      entityName: 'files',
+      operation: 'read'
+    })
   }
 }

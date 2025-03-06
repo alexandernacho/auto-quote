@@ -8,10 +8,12 @@
  * - openai: OpenAI API client
  * - various database actions for retrieving context data
  * - prompt templates for different document types
+ * - handleActionError, createSuccessResponse: For standardized error/success handling
  * 
  * @notes
  * - Implements detailed validation and error handling
  * - Provides client and product matching with confidence scoring
+ * - Uses standardized error handling patterns for consistency
  */
 
 "use server"
@@ -20,6 +22,7 @@ import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
 import { getProductsByUserIdAction } from "@/actions/db/products-actions"
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
 import { SelectClient, SelectProduct } from "@/db/schema"
+import { handleActionError, createSuccessResponse } from "@/lib/error-handling"
 import { openai } from "@/lib/llm/openai"
 import { calculateStringSimilarity, createFallbackResponse, normalizePhone, validateLLMResponse } from "@/lib/llm/utils"
 import { buildClientExtractorPrompt } from "@/prompts/client-extractor"
@@ -82,17 +85,17 @@ export async function parseLLMTextAction(
     // Add raw text for reference
     parsedData.rawText = text
     
-    return {
-      isSuccess: true,
-      message: "Text parsed successfully",
-      data: parsedData
-    }
+    return createSuccessResponse(
+      parsedData,
+      "Text parsed successfully",
+      { operation: 'read', entityName: 'text' }
+    )
   } catch (error) {
-    console.error("Error parsing text with LLM:", error)
-    return { 
-      isSuccess: false, 
-      message: error instanceof Error ? error.message : "Failed to parse text" 
-    }
+    return handleActionError(error, {
+      actionName: 'parseLLMTextAction',
+      entityName: 'text',
+      operation: 'read'
+    })
   }
 }
 
@@ -104,33 +107,38 @@ export async function parseLLMTextAction(
  * @returns Parsed result structure
  */
 async function parseWithOpenAI(prompt: string, type: 'invoice' | 'quote'): Promise<LLMParseResult> {
-  const llmResponse = await openai.chat.completions.create({
-    model: "gpt-4-turbo",
-    messages: [
-      {
-        role: "system",
-        content: "You are an expert invoice/quote parser. Extract structured data from user input."
-      },
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    response_format: { type: "json_object" }
-  })
-  
-  // Parse response
-  const responseText = llmResponse.choices[0].message.content || "{}"
-  const responseData = JSON.parse(responseText)
-  
-  // Validate response structure
-  const validationResult = validateLLMResponse(responseData, type)
-  
-  if (!validationResult.isValid) {
-    throw new Error(`Invalid OpenAI response: ${validationResult.errors.join(", ")}`)
+  try {
+    const llmResponse = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert invoice/quote parser. Extract structured data from user input."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" }
+    })
+    
+    // Parse response
+    const responseText = llmResponse.choices[0].message.content || "{}"
+    const responseData = JSON.parse(responseText)
+    
+    // Validate response structure
+    const validationResult = validateLLMResponse(responseData, type)
+    
+    if (!validationResult.isValid) {
+      throw new Error(`Invalid OpenAI response: ${validationResult.errors.join(", ")}`)
+    }
+    
+    return responseData as LLMParseResult
+  } catch (error) {
+    console.error("Error in OpenAI parsing:", error)
+    throw new Error(`OpenAI parsing failed: ${error instanceof Error ? error.message : String(error)}`)
   }
-  
-  return responseData as LLMParseResult
 }
 
 /**
@@ -215,20 +223,20 @@ export async function getMatchedClientSuggestionsAction(
       }
     }
     
-    return {
-      isSuccess: true,
-      message: "Client matches found",
-      data: {
+    return createSuccessResponse(
+      {
         matches: topMatches,
         confidence
-      }
-    }
+      },
+      "Client matches found",
+      { operation: 'read', entityName: 'client matches' }
+    )
   } catch (error) {
-    console.error("Error getting client suggestions:", error)
-    return { 
-      isSuccess: false, 
-      message: error instanceof Error ? error.message : "Failed to get client suggestions" 
-    }
+    return handleActionError(error, {
+      actionName: 'getMatchedClientSuggestionsAction',
+      entityName: 'client suggestions',
+      operation: 'read'
+    })
   }
 }
 
@@ -294,20 +302,20 @@ export async function getMatchedProductSuggestionsAction(
       }
     }
     
-    return {
-      isSuccess: true,
-      message: "Product matches found",
-      data: {
+    return createSuccessResponse(
+      {
         matches: topMatches,
         confidence
-      }
-    }
+      },
+      "Product matches found",
+      { operation: 'read', entityName: 'product matches' }
+    )
   } catch (error) {
-    console.error("Error getting product suggestions:", error)
-    return { 
-      isSuccess: false, 
-      message: error instanceof Error ? error.message : "Failed to get product suggestions" 
-    }
+    return handleActionError(error, {
+      actionName: 'getMatchedProductSuggestionsAction',
+      entityName: 'product suggestions',
+      operation: 'read'
+    })
   }
 }
 
@@ -358,32 +366,32 @@ export async function extractClientInformationAction(
         throw new Error("Invalid OpenAI response: missing client name")
       }
       
-      return {
-        isSuccess: true,
-        message: "Client information extracted successfully",
-        data: clientData
-      }
+      return createSuccessResponse(
+        clientData,
+        "Client information extracted successfully",
+        { operation: 'read', entityName: 'client information' }
+      )
     } catch (error) {
       console.error("OpenAI client extraction failed:", error)
       
       // Return a basic client with just the text as the name
-      return {
-        isSuccess: true,
-        message: "Fallback client extraction",
-        data: {
+      return createSuccessResponse(
+        {
           name: text.substring(0, 100), // Use first 100 chars as name
           email: "",
           phone: "",
           address: "",
           taxNumber: ""
-        }
-      }
+        },
+        "Fallback client extraction",
+        { operation: 'read', entityName: 'client information' }
+      )
     }
   } catch (error) {
-    console.error("Error extracting client information:", error)
-    return { 
-      isSuccess: false, 
-      message: error instanceof Error ? error.message : "Failed to extract client information" 
-    }
+    return handleActionError(error, {
+      actionName: 'extractClientInformationAction',
+      entityName: 'client information',
+      operation: 'read'
+    })
   }
 }

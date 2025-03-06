@@ -16,11 +16,13 @@
  * - db (from "@/db/db"): Drizzle ORM instance
  * - clientsTable (from "@/db/schema/clients-schema"): Drizzle schema for "clients" table
  * - ActionState<T>: Type representing the result (success/failure) of a server action
+ * - handleActionError, createSuccessResponse: Standardized error and success handling utilities
  *
  * @notes
  * - Each action is declared with `"use server"` to enable server actions in Next.js
  * - We rely on eq from drizzle-orm for equality checks in queries
  * - We rely on the userId to ensure we only fetch or mutate data belonging to the correct user
+ * - Uses standardized error handling for consistent error reporting
  */
 
 "use server"
@@ -31,6 +33,7 @@ import {
   InsertClient,
   SelectClient
 } from "@/db/schema/clients-schema"
+import { handleActionError, createSuccessResponse } from "@/lib/error-handling"
 import { ActionState } from "@/types"
 import { eq, desc } from "drizzle-orm"
 
@@ -54,14 +57,18 @@ export async function createClientAction(
 ): Promise<ActionState<SelectClient>> {
   try {
     const [newClient] = await db.insert(clientsTable).values(data).returning()
-    return {
-      isSuccess: true,
-      message: "Client created successfully",
-      data: newClient
-    }
+    
+    return createSuccessResponse(
+      newClient,
+      "Client created successfully",
+      { operation: 'create', entityName: 'client' }
+    )
   } catch (error) {
-    console.error("Error creating client:", error)
-    return { isSuccess: false, message: "Failed to create client" }
+    return handleActionError(error, {
+      actionName: 'createClientAction',
+      entityName: 'client',
+      operation: 'create'
+    })
   }
 }
 
@@ -84,14 +91,18 @@ export async function getClientsByUserIdAction(
       orderBy: [desc(clientsTable.updatedAt)]
     })
 
-    return {
-      isSuccess: true,
-      message: "Clients retrieved successfully",
-      data: clients
-    }
+    return createSuccessResponse(
+      clients,
+      "Clients retrieved successfully",
+      { operation: 'read', entityName: 'clients' }
+    )
   } catch (error) {
-    console.error("Error getting clients:", error)
-    return { isSuccess: false, message: "Failed to get clients" }
+    return handleActionError(error, {
+      actionName: 'getClientsByUserIdAction',
+      entityName: 'clients',
+      operation: 'read',
+      entityId: userId
+    })
   }
 }
 
@@ -120,14 +131,18 @@ export async function getClientByIdAction(
       }
     }
 
-    return {
-      isSuccess: true,
-      message: "Client retrieved successfully",
-      data: client
-    }
+    return createSuccessResponse(
+      client,
+      "Client retrieved successfully",
+      { operation: 'read', entityName: 'client' }
+    )
   } catch (error) {
-    console.error("Error getting client by ID:", error)
-    return { isSuccess: false, message: "Failed to get client by ID" }
+    return handleActionError(error, {
+      actionName: 'getClientByIdAction',
+      entityName: 'client',
+      operation: 'read',
+      entityId: id
+    })
   }
 }
 
@@ -161,14 +176,18 @@ export async function updateClientAction(
       }
     }
 
-    return {
-      isSuccess: true,
-      message: "Client updated successfully",
-      data: updatedClient
-    }
+    return createSuccessResponse(
+      updatedClient,
+      "Client updated successfully",
+      { operation: 'update', entityName: 'client' }
+    )
   } catch (error) {
-    console.error("Error updating client:", error)
-    return { isSuccess: false, message: "Failed to update client" }
+    return handleActionError(error, {
+      actionName: 'updateClientAction',
+      entityName: 'client',
+      operation: 'update',
+      entityId: id
+    })
   }
 }
 
@@ -185,13 +204,18 @@ export async function updateClientAction(
 export async function deleteClientAction(id: string): Promise<ActionState<void>> {
   try {
     await db.delete(clientsTable).where(eq(clientsTable.id, id))
-    return {
-      isSuccess: true,
-      message: "Client deleted successfully",
-      data: undefined
-    }
+    
+    return createSuccessResponse(
+      undefined,
+      "Client deleted successfully",
+      { operation: 'delete', entityName: 'client' }
+    )
   } catch (error) {
-    console.error("Error deleting client:", error)
-    return { isSuccess: false, message: "Failed to delete client" }
+    return handleActionError(error, {
+      actionName: 'deleteClientAction',
+      entityName: 'client',
+      operation: 'delete',
+      entityId: id
+    })
   }
 }

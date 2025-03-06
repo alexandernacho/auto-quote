@@ -9,17 +9,20 @@
  * - Generate DOCX documents for invoices and quotes
  * - Upload generated documents to Supabase Storage
  * - Get URLs for document download
+ * - Standardized error handling
  * 
  * @dependencies
  * - generatePdf: PDF generation utility
  * - generateDocx: DOCX generation utility
  * - Supabase: For document storage
  * - Database actions: For retrieving data to generate documents
+ * - handleActionError, createSuccessResponse: For standardized error handling
  * 
  * @notes
  * - Documents are stored in Supabase Storage with a path structure based on userId, documentType, and documentId
  * - Uses a consistent naming pattern for files: {invoice|quote}-{number}-{timestamp}.{pdf|docx}
  * - Handles both PDF and DOCX formats with separate generators
+ * - Uses standardized error handling patterns for consistency
  */
 
 "use server"
@@ -36,6 +39,7 @@ import {
 } from "@/actions/db"
 import { generatePdf } from "@/lib/document/pdf-generator"
 import { generateDocx } from "@/lib/document/docx-generator"
+import { handleActionError, createSuccessResponse } from "@/lib/error-handling"
 import { createClient } from "@supabase/supabase-js"
 import { auth } from "@clerk/nextjs/server"
 import { ActionState } from "@/types"
@@ -82,13 +86,13 @@ export async function generateDocumentAction(
   id: string,
   format: 'pdf' | 'docx' = 'pdf'
 ): Promise<ActionState<{ url: string }>> {
-  const { userId } = await auth()
-  
-  if (!userId) {
-    return { isSuccess: false, message: "Unauthorized" }
-  }
-  
   try {
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return { isSuccess: false, message: "Unauthorized" }
+    }
+    
     // Get document data
     let document;
     let items;
@@ -203,17 +207,18 @@ export async function generateDocumentAction(
       throw new Error('Failed to generate signed URL')
     }
     
-    return {
-      isSuccess: true,
-      message: `${type} ${format.toUpperCase()} generated successfully`,
-      data: { url: urlData.signedUrl }
-    }
+    return createSuccessResponse(
+      { url: urlData.signedUrl },
+      `${type} ${format.toUpperCase()} generated successfully`,
+      { operation: 'create', entityName: `${type} ${format}` }
+    )
   } catch (error) {
-    console.error(`Error generating ${type} ${format}:`, error)
-    return { 
-      isSuccess: false, 
-      message: `Failed to generate ${type} ${format}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-    }
+    return handleActionError(error, {
+      actionName: 'generateDocumentAction',
+      entityName: `document (${type} ${format})`,
+      operation: 'create',
+      entityId: id
+    })
   }
 }
 
@@ -228,13 +233,13 @@ export async function getDocumentFilesAction(
   type: 'invoice' | 'quote',
   id: string
 ): Promise<ActionState<{ name: string, format: string, url: string, createdAt: string }[]>> {
-  const { userId } = await auth()
-  
-  if (!userId) {
-    return { isSuccess: false, message: "Unauthorized" }
-  }
-  
   try {
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return { isSuccess: false, message: "Unauthorized" }
+    }
+    
     // List files in the document directory
     const path = `${userId}/${type}s/${id}`
     
@@ -250,11 +255,11 @@ export async function getDocumentFilesAction(
     }
     
     if (!data || data.length === 0) {
-      return {
-        isSuccess: true,
-        message: "No document files found",
-        data: []
-      }
+      return createSuccessResponse(
+        [],
+        "No document files found",
+        { operation: 'read', entityName: 'document files' }
+      )
     }
     
     // Process file information
@@ -288,17 +293,18 @@ export async function getDocumentFilesAction(
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
     
-    return {
-      isSuccess: true,
-      message: "Document files retrieved successfully",
-      data: validFiles
-    }
+    return createSuccessResponse(
+      validFiles as Array<{ name: string, format: string, url: string, createdAt: string }>,
+      "Document files retrieved successfully",
+      { operation: 'read', entityName: 'document files' }
+    )
   } catch (error) {
-    console.error(`Error getting ${type} document files:`, error)
-    return { 
-      isSuccess: false, 
-      message: `Failed to get ${type} document files`
-    }
+    return handleActionError(error, {
+      actionName: 'getDocumentFilesAction',
+      entityName: 'document files',
+      operation: 'read',
+      entityId: id
+    })
   }
 }
 
@@ -315,13 +321,13 @@ export async function deleteDocumentFileAction(
   id: string,
   filename: string
 ): Promise<ActionState<void>> {
-  const { userId } = await auth()
-  
-  if (!userId) {
-    return { isSuccess: false, message: "Unauthorized" }
-  }
-  
   try {
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return { isSuccess: false, message: "Unauthorized" }
+    }
+    
     // Construct the full path
     const path = `${userId}/${type}s/${id}/${filename}`
     
@@ -337,17 +343,18 @@ export async function deleteDocumentFileAction(
       throw error
     }
     
-    return {
-      isSuccess: true,
-      message: "Document file deleted successfully",
-      data: undefined
-    }
+    return createSuccessResponse(
+      undefined,
+      "Document file deleted successfully",
+      { operation: 'delete', entityName: 'document file' }
+    )
   } catch (error) {
-    console.error(`Error deleting ${type} document file:`, error)
-    return { 
-      isSuccess: false, 
-      message: `Failed to delete ${type} document file`
-    }
+    return handleActionError(error, {
+      actionName: 'deleteDocumentFileAction',
+      entityName: 'document file',
+      operation: 'delete',
+      entityId: id
+    })
   }
 }
 
@@ -365,13 +372,13 @@ export async function generateDocumentForEmailAction(
   id: string,
   format: 'pdf' | 'docx' = 'pdf'
 ): Promise<ActionState<{ buffer: Buffer, filename: string }>> {
-  const { userId } = await auth()
-  
-  if (!userId) {
-    return { isSuccess: false, message: "Unauthorized" }
-  }
-  
   try {
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return { isSuccess: false, message: "Unauthorized" }
+    }
+    
     // Get document data (same as in generateDocumentAction)
     let document;
     let items;
@@ -459,19 +466,20 @@ export async function generateDocumentForEmailAction(
     // Create filename
     const filename = `${type}-${documentNumber.replace(/[^a-zA-Z0-9]/g, '-')}.${format}`
     
-    return {
-      isSuccess: true,
-      message: `${type} ${format.toUpperCase()} generated successfully for email`,
-      data: {
+    return createSuccessResponse(
+      {
         buffer: fileBuffer,
         filename
-      }
-    }
+      },
+      `${type} ${format.toUpperCase()} generated successfully for email`,
+      { operation: 'create', entityName: `${type} ${format} email attachment` }
+    )
   } catch (error) {
-    console.error(`Error generating ${type} ${format} for email:`, error)
-    return { 
-      isSuccess: false, 
-      message: `Failed to generate ${type} ${format} for email`
-    }
+    return handleActionError(error, {
+      actionName: 'generateDocumentForEmailAction',
+      entityName: `document for email (${type} ${format})`,
+      operation: 'create',
+      entityId: id
+    })
   }
 }
