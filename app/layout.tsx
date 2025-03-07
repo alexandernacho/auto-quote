@@ -1,27 +1,25 @@
 /**
-@file Root layout component for the Smart Invoice WebApp
-@description
-This is the main layout wrapper for the entire application.
-It sets up global providers, styling, and user authentication.
-Merged with functionality from auto-quote-code layout for consistency.
-
-Key responsibilities:
-Set up Clerk authentication provider
-Initialize user profile if needed
-Apply global styling and fonts
-Configure theme provider
-Set up analytics tracking
-
-@dependencies
-clerk/nextjs: For user authentication
-next/font: For font configuration
-components/utilities/providers: For theme and other providers
-
-@notes
-This component runs on every page request as a server component
-User profile creation happens here to ensure profile exists before any other operations
-Contains merged functionality from both root layouts for consistency
-*/
+ * @file Root layout component for the Smart Invoice WebApp
+ * @description
+ * This is the main layout wrapper for the entire application.
+ * It sets up global providers, styling, and user authentication.
+ * 
+ * Key responsibilities:
+ * - Set up Clerk authentication provider
+ * - Initialize user profile if needed
+ * - Apply global styling and fonts
+ * - Configure theme provider
+ * - Set up analytics tracking
+ * 
+ * @dependencies
+ * - clerk/nextjs: For user authentication
+ * - next/font: For font configuration
+ * - components/utilities/providers: For theme and other providers
+ * 
+ * @notes
+ * - This component runs on every page request as a server component
+ * - User profile creation happens here to ensure profile exists before any other operations
+ */
 
 import { createProfileAction, getProfileByUserIdAction } from "@/actions/db/profiles-actions"
 import { Toaster } from "@/components/ui/toaster"
@@ -48,10 +46,10 @@ export const metadata: Metadata = {
 }
 
 /**
-Root layout component that wraps all pages in the application
-@param children The page content to render within the layout
-@returns JSX for the root layout
-*/
+ * Root layout component that wraps all pages in the application
+ * @param children The page content to render within the layout
+ * @returns JSX for the root layout
+ */
 export default async function RootLayout({
   children
 }: {

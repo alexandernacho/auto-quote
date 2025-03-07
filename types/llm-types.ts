@@ -41,6 +41,7 @@ export interface LLMExtractedItem {
   taxRate?: string        // Optional tax rate as string
   subtotal?: string       // Optional calculated subtotal
   total?: string          // Optional calculated total with tax
+  taxAmount?: string      // Optional tax amount
 }
 
 /**
@@ -100,30 +101,3 @@ export interface ValidationResult {
   isValid: boolean
   errors: string[]
 }
-
-/**
- * Options for LLM processing
- */
-export interface LLMProcessingOptions {
-  temperature?: number        // Controls randomness (0.0 to 1.0)
-  maxTokens?: number          // Maximum tokens to generate
-  stop?: string[]             // Sequences that trigger early stopping
-  provider?: 'openai' | 'gemini' // LLM provider to use
-  model?: string              // Specific model to use
-  stream?: boolean            // Whether to stream the response
-}
-
-/**
- * Structured prompt template component
- */
-export interface PromptTemplate {
-  systemPrompt: string        // Instructions for the LLM
-  userPrompt: string          // User query template
-  exampleInputs?: any[]       // Example inputs for few-shot learning
-  exampleOutputs?: any[]      // Example outputs for few-shot learning
-}
-
-/**
- * Streaming response handler
- */
-export type StreamHandler = (chunk: string, isComplete: boolean) => void

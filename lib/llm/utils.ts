@@ -225,17 +225,3 @@ export function formatDate(
     return 'Invalid date'
   }
 }
-
-/**
- * Truncate text to a specified length with ellipsis
- * 
- * @param text Text to truncate
- * @param length Maximum length (defaults to 100)
- * @returns Truncated text with ellipsis if needed
- */
-export function truncateText(text: string, length: number = 100): string {
-  if (!text) return ''
-  if (text.length <= length) return text
-  
-  return text.substring(0, length) + '...'
-}

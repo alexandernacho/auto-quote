@@ -1,8 +1,23 @@
-/*
-<ai_context>
-Contains middleware for protecting routes, checking user authentication, and redirecting as needed.
-</ai_context>
-*/
+/**
+ * @file Authentication middleware
+ * @description
+ * Contains middleware for protecting routes, checking user authentication, and redirecting as needed.
+ * Handles security and routing for protected application areas.
+ * 
+ * Key features:
+ * - Protects application routes that require authentication
+ * - Redirects unauthenticated users to login
+ * - Allows public access to marketing pages
+ * 
+ * @dependencies
+ * - @clerk/nextjs/server: Authentication middleware and utilities
+ * - next/server: Next.js server components
+ * 
+ * @notes
+ * - All routes under /app/* require authentication
+ * - Public routes (marketing, auth) are accessible without login
+ * - Uses Clerk middleware for auth state management
+ */
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
