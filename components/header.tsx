@@ -23,7 +23,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
 import {
   SignedIn,
   SignedOut,
@@ -35,6 +34,7 @@ import { FileText, Menu, X } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 /**
  * Navigation link structure
@@ -132,8 +132,6 @@ export default function Header() {
 
         {/* Right side controls */}
         <div className="flex items-center space-x-3">
-          <ThemeSwitcher />
-
           <SignedOut>
             <div className="hidden sm:flex sm:space-x-3">
               <SignInButton>

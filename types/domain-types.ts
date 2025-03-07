@@ -106,11 +106,6 @@ export interface LineItem {
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
 
 /**
- * Theme options
- */
-export type ThemeMode = 'light' | 'dark' | 'system'
-
-/**
  * Logo position options for document templates
  */
 export type LogoPosition = 'top-left' | 'top-center' | 'top-right' | 'none'

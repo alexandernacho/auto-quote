@@ -36,7 +36,6 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
-import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
 import { UserButton } from "@clerk/nextjs"
 import { 
   FileText, 
@@ -144,9 +143,6 @@ export function AppHeader({ profile }: AppHeaderProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        {/* Theme toggle */}
-        <ThemeSwitcher />
         
         {/* User profile button */}
         <UserButton afterSignOutUrl="/" />

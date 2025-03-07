@@ -81,12 +81,7 @@ export default async function RootLayout({
             inter.className
           )}
         >
-          <Providers
-            attribute="class"
-            defaultTheme="light"
-            enableSystem={false}
-            disableTransitionOnChange
-          >
+          <Providers>
             {/* Analytics tracking components */}
             <PostHogUserIdentify />
             <PostHogPageview />
