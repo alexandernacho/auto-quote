@@ -16,7 +16,7 @@ import InvoiceForm from "../../_components/invoice-form"
 export default async function InvoiceEditPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   // Get authenticated user
   const { userId } = await auth()
@@ -26,7 +26,8 @@ export default async function InvoiceEditPage({
   }
   
   // Fetch invoice data
-  const invoiceResult = await getInvoiceByIdAction(params.id)
+  const { id } = await params
+  const invoiceResult = await getInvoiceByIdAction(id)
   
   // If invoice not found or doesn't belong to user, show 404
   if (!invoiceResult.isSuccess || invoiceResult.data.userId !== userId) {
