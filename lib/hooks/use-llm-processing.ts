@@ -58,10 +58,17 @@ export function useLLMProcessing() {
    * Handle the initial parsed result from the LLM
    * 
    * @param result - The parsed result from LLM
+   * @param userId - The user ID for context
+   * @param type - The document type for context
    */
-  const handleParsedResult = (result: LLMParseResult) => {
+  const handleParsedResult = (result: LLMParseResult, userId?: string, type?: 'invoice' | 'quote') => {
     setParseResult(result)
     setOriginalText(result.rawText || '')
+    
+    // Store context for later use
+    if (userId && type) {
+      setContext({ userId, type })
+    }
     
     // If clarification is needed, move to clarification state
     if (result.needsClarification && result.clarificationQuestions?.length) {
@@ -97,6 +104,7 @@ export function useLLMProcessing() {
   const handleClarificationSubmit = async () => {
     if (!originalText || !parseResult) return
     
+    // Set state to processing immediately
     setState('processing')
     
     try {
@@ -110,26 +118,65 @@ export function useLLMProcessing() {
         )
       ].join('\n')
       
+      // Get userId and type from context or parseResult
+      const userId = context.userId || ''
+      const type = context.type || 'invoice'
+      
+      if (!userId) {
+        console.error('Missing userId for clarification processing')
+        // Instead of going to error state, try to use the existing result
+        setState('review')
+        return
+      }
+      
       // Re-process with clarifications
-      if (context.userId && context.type) {
+      try {
         const result = await parseLLMTextAction(
           enhancedText,
-          context.userId,
-          context.type
+          userId,
+          type
         )
         
         if (result.isSuccess) {
           setParseResult(result.data)
           setState('review')
         } else {
-          setState('error')
+          console.warn('Clarification processing returned error:', result.message)
+          // Instead of going to error state, try to use the existing result
+          // but add the clarification answers to it
+          const updatedResult = {
+            ...parseResult,
+            rawText: enhancedText,
+            needsClarification: false
+          }
+          setParseResult(updatedResult)
+          setState('review')
         }
-      } else {
-        setState('error')
+      } catch (error) {
+        console.error('Error in parseLLMTextAction:', error)
+        // Instead of going to error state, try to use the existing result
+        const updatedResult = {
+          ...parseResult,
+          rawText: enhancedText,
+          needsClarification: false
+        }
+        setParseResult(updatedResult)
+        setState('review')
       }
     } catch (error) {
       console.error('Error processing clarifications:', error)
-      setState('error')
+      // Instead of going to error state, try to use the existing result
+      const updatedResult = parseResult ? {
+        ...parseResult,
+        needsClarification: false
+      } : null
+      
+      if (updatedResult) {
+        setParseResult(updatedResult)
+        setState('review')
+      } else {
+        setState('error')
+      }
     }
   }
   

@@ -13,6 +13,10 @@ import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 import { LLMParseResult } from "@/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Check, Edit } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 
 interface AIInvoiceCreatorProps {
   userId: string
@@ -158,23 +162,34 @@ export function AIInvoiceCreator({
         <LLMInputForm 
           userId={userId} 
           type="invoice" 
-          onParsedResult={handleParsedResult} 
+          onParsedResult={(result, userId, type) => handleParsedResult(result, userId, type)} 
         />
       )}
       
-      {(state === 'processing' || state === 'clarification') && (
+      {state === 'processing' && (
         <LLMProcessing 
           userId={userId}
           type="invoice"
-          onComplete={handleParsedResult}
+          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
+          onCancel={onSwitchToManual}
+        />
+      )}
+      
+      {state === 'clarification' && (
+        <LLMProcessing 
+          userId={userId}
+          type="invoice"
+          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
           onCancel={onSwitchToManual}
         />
       )}
       
       {state === 'review' && parseResult && (
-        <LLMResults 
-          result={parseResult}
+        <LLMProcessing 
+          userId={userId}
           type="invoice"
+          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
+          onCancel={onSwitchToManual}
           onGenerate={handleGenerateInvoice}
         />
       )}

@@ -93,6 +93,22 @@ export async function parseLLMTextAction(
     // Add raw text for reference
     parsedData.rawText = text
     
+    // Ensure needsClarification is set to true if there are validation issues
+    if (!parsedData.items || parsedData.items.length === 0 || 
+        !parsedData.client || !parsedData.client.name ||
+        !parsedData.document) {
+      parsedData.needsClarification = true
+      
+      // Ensure clarification questions exist
+      if (!parsedData.clarificationQuestions || parsedData.clarificationQuestions.length === 0) {
+        parsedData.clarificationQuestions = [
+          "Could you provide more details about the client?",
+          "What specific products or services should be included?",
+          "Are there any special terms or conditions for this document?"
+        ]
+      }
+    }
+    
     return createSuccessResponse(
       parsedData,
       "Text parsed successfully",
@@ -133,19 +149,66 @@ async function parseWithOpenAI(prompt: string, type: 'invoice' | 'quote'): Promi
     
     // Parse response
     const responseText = llmResponse.choices[0].message.content || "{}"
-    const responseData = JSON.parse(responseText)
+    let responseData = JSON.parse(responseText)
     
     // Validate response structure
     const validationResult = validateLLMResponse(responseData, type)
     
     if (!validationResult.isValid) {
-      throw new Error(`Invalid OpenAI response: ${validationResult.errors.join(", ")}`)
+      console.warn(`OpenAI response validation failed: ${validationResult.errors.join(", ")}`)
+      
+      // Instead of throwing an error, fix the response data
+      const today = new Date().toISOString().split('T')[0]
+      const futureDate = new Date()
+      futureDate.setDate(futureDate.getDate() + 30)
+      const thirtyDaysFromNow = futureDate.toISOString().split('T')[0]
+      
+      // Ensure client exists
+      if (!responseData.client || typeof responseData.client !== 'object') {
+        responseData.client = {
+          name: "Unknown Client",
+          confidence: "low"
+        }
+      }
+      
+      // Ensure items exist
+      if (!responseData.items || !Array.isArray(responseData.items) || responseData.items.length === 0) {
+        responseData.items = [
+          {
+            description: "Services as described",
+            quantity: "1",
+            unitPrice: "0",
+            subtotal: "0",
+            total: "0"
+          }
+        ]
+      }
+      
+      // Ensure document exists
+      if (!responseData.document || typeof responseData.document !== 'object') {
+        responseData.document = {
+          issueDate: today,
+          ...(type === 'invoice' ? { dueDate: thirtyDaysFromNow } : { validUntil: thirtyDaysFromNow }),
+          notes: "Generated from incomplete information. Please review and edit."
+        }
+      }
+      
+      // Set needsClarification to true
+      responseData.needsClarification = true
+      
+      // Add clarification questions
+      responseData.clarificationQuestions = [
+        "Could you provide more details about the client?",
+        "What specific products or services should be included?",
+        "What are the quantities and prices for each item?"
+      ]
     }
     
     return responseData as LLMParseResult
   } catch (error) {
     console.error("Error in OpenAI parsing:", error)
-    throw new Error(`OpenAI parsing failed: ${error instanceof Error ? error.message : String(error)}`)
+    // Return a fallback response instead of throwing an error
+    return createFallbackResponse("", type)
   }
 }
 

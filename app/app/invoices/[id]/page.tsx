@@ -49,7 +49,11 @@ import { InvoiceActions } from "../_components/invoice-actions"
  * @param params - Contains the invoice ID from the URL
  * @returns JSX component for the individual invoice page
  */
-export default async function InvoicePage({ params }: { params: { id: string } }) {
+export default async function InvoicePage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
   // Get authenticated user ID
   const { userId } = await auth()
 
@@ -59,7 +63,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   }
 
   // Get the invoice ID from the URL params
-  const { id } = params
+  const { id } = await params
 
   // Verify the user owns this invoice
   const ownershipResult = await verifyInvoiceOwnerAction(id, userId)

@@ -1,6 +1,6 @@
 "use server"
 
-import { getQuoteByIdAction } from "@/actions/db/quotes-actions"
+import { getQuoteByIdAction, getQuoteItemsByQuoteIdAction } from "@/actions/db/quotes-actions"
 import { auth } from "@clerk/nextjs/server"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -35,6 +35,10 @@ export default async function QuoteEditPage({
   
   const quote = quoteResult.data
   
+  // Fetch quote items
+  const itemsResult = await getQuoteItemsByQuoteIdAction(params.id)
+  const items = itemsResult.isSuccess ? itemsResult.data : []
+  
   return (
     <div className="space-y-6">
       {/* Page header with back link */}
@@ -53,7 +57,7 @@ export default async function QuoteEditPage({
         Update the quote details below.
       </p>
       
-      <QuoteForm userId={userId} quote={quote} />
+      <QuoteForm userId={userId} quote={quote} initialItems={items} />
     </div>
   )
 } 

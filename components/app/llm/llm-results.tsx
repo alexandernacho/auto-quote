@@ -409,7 +409,7 @@ export function LLMResults({ result, type, onGenerate }: LLMResultsProps) {
       )}
       
       {/* Action buttons */}
-      <div className="flex justify-between">
+      <div className="flex justify-end">
         <Button 
           variant="outline" 
           onClick={toggleEditing}
@@ -426,13 +426,6 @@ export function LLMResults({ result, type, onGenerate }: LLMResultsProps) {
               Edit Details
             </>
           )}
-        </Button>
-        
-        <Button 
-          onClick={handleGenerate}
-          className="flex items-center gap-2"
-        >
-          Generate {type === 'invoice' ? 'Invoice' : 'Quote'}
         </Button>
       </div>
     </div>

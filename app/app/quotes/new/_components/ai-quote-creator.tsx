@@ -13,6 +13,10 @@ import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 import { LLMParseResult } from "@/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Check, Edit } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 
 interface AIQuoteCreatorProps {
   userId: string
@@ -140,23 +144,34 @@ export function AIQuoteCreator({
         <LLMInputForm 
           userId={userId} 
           type="quote" 
-          onParsedResult={handleParsedResult} 
+          onParsedResult={(result, userId, type) => handleParsedResult(result, userId, type)} 
         />
       )}
       
-      {(state === 'processing' || state === 'clarification') && (
+      {state === 'processing' && (
         <LLMProcessing 
           userId={userId}
           type="quote"
-          onComplete={handleParsedResult}
+          onComplete={(result) => handleParsedResult(result, userId, "quote")}
+          onCancel={onSwitchToManual}
+        />
+      )}
+      
+      {state === 'clarification' && (
+        <LLMProcessing 
+          userId={userId}
+          type="quote"
+          onComplete={(result) => handleParsedResult(result, userId, "quote")}
           onCancel={onSwitchToManual}
         />
       )}
       
       {state === 'review' && parseResult && (
-        <LLMResults 
-          result={parseResult}
+        <LLMProcessing 
+          userId={userId}
           type="quote"
+          onComplete={(result) => handleParsedResult(result, userId, "quote")}
+          onCancel={onSwitchToManual}
           onGenerate={handleGenerateQuote}
         />
       )}

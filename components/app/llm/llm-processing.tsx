@@ -55,6 +55,7 @@ interface LLMProcessingProps {
   type: 'invoice' | 'quote'
   onComplete: (result: LLMParseResult) => void
   onCancel: () => void
+  onGenerate?: (result: LLMParseResult) => void
 }
 
 /**
@@ -70,7 +71,8 @@ export function LLMProcessing({
   userId,
   type,
   onComplete,
-  onCancel
+  onCancel,
+  onGenerate
 }: LLMProcessingProps) {
   // Get LLM processing state from custom hook
   const {
@@ -99,7 +101,12 @@ export function LLMProcessing({
       return
     }
 
-    onComplete(parseResult)
+    // If onGenerate is provided, use it instead of onComplete
+    if (onGenerate) {
+      onGenerate(parseResult)
+    } else {
+      onComplete(parseResult)
+    }
   }
 
   // Render different content based on current state
@@ -110,8 +117,31 @@ export function LLMProcessing({
         <LLMInputForm 
           type={type} 
           userId={userId} 
-          onParsedResult={handleParsedResult} 
+          onParsedResult={(result) => handleParsedResult(result, userId, type)} 
         />
+      )}
+
+      {/* Processing Step - shown while LLM is processing */}
+      {state === 'processing' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+              Processing Your Information
+            </CardTitle>
+            <CardDescription>
+              Please wait while we process your {type} details...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <Loader2 className="h-16 w-16 animate-spin text-primary/50" />
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              Our AI is analyzing your information and generating your {type}.
+              <br />
+              This may take a few moments.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Clarification Step - shown if LLM needs more information */}
@@ -146,7 +176,16 @@ export function LLMProcessing({
               Start Over
             </Button>
             <Button 
-              onClick={handleClarificationSubmit}
+              onClick={async () => {
+                // Create a wrapper function to show loading state
+                const allQuestionsAnswered = parseResult.clarificationQuestions?.every(
+                  (_: string, i: number) => !!clarificationAnswers[i]
+                );
+                
+                if (allQuestionsAnswered) {
+                  await handleClarificationSubmit();
+                }
+              }}
               disabled={!parseResult.clarificationQuestions?.every((_: string, i: number) => !!clarificationAnswers[i])}
             >
               Continue
@@ -197,7 +236,7 @@ export function LLMProcessing({
                 Start Over
               </Button>
               <Button onClick={handleCompleteProcess}>
-                Continue to {type === 'invoice' ? 'Invoice' : 'Quote'} Creation
+                {onGenerate ? `Generate ${type === 'invoice' ? 'Invoice' : 'Quote'}` : `Continue to ${type === 'invoice' ? 'Invoice' : 'Quote'} Creation`}
               </Button>
             </CardFooter>
           </Card>

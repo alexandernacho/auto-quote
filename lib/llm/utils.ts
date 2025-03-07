@@ -69,66 +69,117 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
- * Validate LLM response structure for invoice/quote parsing
- * Ensures the response contains all required fields in the correct format
+ * Validate the structure of an LLM response
  * 
- * @param data Response data from LLM
- * @param type Type of document being parsed (invoice or quote)
- * @returns Validation result with isValid flag and any error messages
+ * @param data The parsed JSON data from LLM
+ * @param type The type of document (invoice or quote)
+ * @returns Validation result with isValid flag and errors
  */
 export function validateLLMResponse(data: any, type: 'invoice' | 'quote'): ValidationResult {
   const errors: string[] = []
   
-  // Check if response is an object
-  if (!data || typeof data !== 'object') {
-    return { isValid: false, errors: ['Response is not a valid object'] }
-  }
-  
-  // Validate client object
+  // Validate client
   if (!data.client) {
     errors.push('Missing client information')
   } else if (typeof data.client !== 'object') {
-    errors.push('Client information is not an object')
+    errors.push('Client is not an object')
   } else {
+    // Client exists but may be missing fields
     if (!data.client.name) {
       errors.push('Missing client name')
     }
-    if (!('confidence' in data.client)) {
-      errors.push('Missing client match confidence')
+    
+    // Ensure confidence is set
+    if (!data.client.confidence) {
+      data.client.confidence = 'low'
     }
   }
   
-  // Validate items array
-  if (!data.items || !Array.isArray(data.items)) {
-    errors.push('Missing or invalid items array')
+  // Validate items
+  if (!data.items) {
+    errors.push('Missing items array')
+  } else if (!Array.isArray(data.items)) {
+    errors.push('Items is not an array')
   } else if (data.items.length === 0) {
     errors.push('No items found in the parsed data')
   } else {
-    // Check first item for required fields
-    const firstItem = data.items[0]
-    if (!firstItem.description) errors.push('Missing item description')
-    if (!firstItem.quantity) errors.push('Missing item quantity')
-    if (!firstItem.unitPrice) errors.push('Missing item unit price')
+    // Items exist but may have issues
+    for (let i = 0; i < data.items.length; i++) {
+      const item = data.items[i]
+      if (!item.description) {
+        errors.push(`Item ${i+1} is missing a description`)
+      }
+      if (!item.quantity) {
+        errors.push(`Item ${i+1} is missing a quantity`)
+        // Set default quantity
+        data.items[i].quantity = "1"
+      }
+      if (!item.unitPrice) {
+        errors.push(`Item ${i+1} is missing a unit price`)
+        // Set default unit price
+        data.items[i].unitPrice = "0"
+      }
+      
+      // Ensure subtotal and total exist
+      if (!item.subtotal) {
+        data.items[i].subtotal = item.unitPrice
+      }
+      if (!item.total) {
+        data.items[i].total = item.subtotal
+      }
+    }
   }
   
-  // Validate document object
-  if (!data.document || typeof data.document !== 'object') {
-    errors.push('Missing or invalid document information')
+  // Validate document
+  if (!data.document) {
+    errors.push('Missing document information')
+  } else if (typeof data.document !== 'object') {
+    errors.push('Document is not an object')
   } else {
-    // Check for document-specific fields based on type
+    // Document exists but may be missing fields
+    if (!data.document.issueDate) {
+      errors.push('Missing issue date')
+      // Set default issue date
+      data.document.issueDate = new Date().toISOString().split('T')[0]
+    }
+    
+    // Check type-specific fields
     if (type === 'invoice' && !data.document.dueDate) {
       errors.push('Missing due date for invoice')
+      // Set default due date (30 days from issue date)
+      const dueDate = new Date(data.document.issueDate)
+      dueDate.setDate(dueDate.getDate() + 30)
+      data.document.dueDate = dueDate.toISOString().split('T')[0]
     } else if (type === 'quote' && !data.document.validUntil) {
       errors.push('Missing valid until date for quote')
+      // Set default valid until date (30 days from issue date)
+      const validUntil = new Date(data.document.issueDate)
+      validUntil.setDate(validUntil.getDate() + 30)
+      data.document.validUntil = validUntil.toISOString().split('T')[0]
     }
   }
   
   // Validate clarification fields
   if (typeof data.needsClarification !== 'boolean') {
     errors.push('Missing or invalid needsClarification flag')
+    // Set default value
+    data.needsClarification = errors.length > 0
   }
-  if (data.needsClarification && (!data.clarificationQuestions || !Array.isArray(data.clarificationQuestions))) {
+  
+  // If there are errors, ensure needsClarification is true
+  if (errors.length > 0) {
+    data.needsClarification = true
+  }
+  
+  // If needsClarification is true but no questions, add default questions
+  if (data.needsClarification && (!data.clarificationQuestions || !Array.isArray(data.clarificationQuestions) || data.clarificationQuestions.length === 0)) {
     errors.push('Needs clarification but missing clarification questions')
+    // Add default questions
+    data.clarificationQuestions = [
+      "Could you provide more details about the client?",
+      "What specific products or services should be included?",
+      "What are the quantities and prices for each item?"
+    ]
   }
   
   return {

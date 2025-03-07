@@ -45,7 +45,7 @@ import { useState } from "react"
 interface LLMInputFormProps {
   type: 'invoice' | 'quote'
   userId: string
-  onParsedResult: (result: LLMParseResult) => void
+  onParsedResult: (result: LLMParseResult, userId: string, type: 'invoice' | 'quote') => void
 }
 
 /**
@@ -91,8 +91,8 @@ export function LLMInputForm({
       const result = await parseLLMTextAction(text, userId, type)
       
       if (result.isSuccess) {
-        // Pass result to parent component
-        onParsedResult(result.data)
+        // Pass result to parent component with context
+        onParsedResult(result.data, userId, type)
         
         // Show success message
         toast({
@@ -100,12 +100,50 @@ export function LLMInputForm({
           description: "Successfully processed your text"
         })
       } else {
-        // Show error message
+        // Show error message but still try to use the data if available
         toast({
-          title: "Error processing text",
-          description: result.message,
+          title: "Warning",
+          description: "Some information may be incomplete. Please review and clarify.",
           variant: "destructive"
         })
+        
+        // Create a basic fallback response
+        const today = new Date().toISOString().split('T')[0]
+        const futureDate = new Date()
+        futureDate.setDate(futureDate.getDate() + 30)
+        const thirtyDaysFromNow = futureDate.toISOString().split('T')[0]
+        
+        // Create a minimal valid response
+        const fallbackResponse: LLMParseResult = {
+          client: {
+            name: "Unknown Client",
+            confidence: "low"
+          },
+          items: [
+            {
+              description: "Services as described",
+              quantity: "1",
+              unitPrice: "0",
+              subtotal: "0",
+              total: "0"
+            }
+          ],
+          document: {
+            issueDate: today,
+            ...(type === 'invoice' ? { dueDate: thirtyDaysFromNow } : { validUntil: thirtyDaysFromNow }),
+            notes: "Generated from incomplete information. Please review and edit."
+          },
+          needsClarification: true,
+          clarificationQuestions: [
+            "Could you provide more details about the client?",
+            "What specific products or services should be included?",
+            "What are the quantities and prices for each item?"
+          ],
+          rawText: text
+        }
+        
+        // Pass the fallback response to parent with context
+        onParsedResult(fallbackResponse, userId, type)
       }
     } catch (error) {
       console.error("Error processing text:", error)
@@ -113,9 +151,12 @@ export function LLMInputForm({
       // Show generic error message
       toast({
         title: "Unexpected error",
-        description: "Failed to process your text. Please try again.",
+        description: "Failed to process your text. Please try again or provide more details.",
         variant: "destructive"
       })
+      
+      // Reset processing state
+      setIsProcessing(false)
     } finally {
       setIsProcessing(false)
     }

@@ -30,7 +30,7 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { InsertQuote, InsertQuoteItem, SelectQuote } from "@/db/schema"
+import { InsertQuote, InsertQuoteItem, SelectQuote, SelectQuoteItem } from "@/db/schema"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CalendarIcon, Loader2, Plus, Trash } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -83,6 +83,7 @@ interface QuoteFormProps {
   quote?: SelectQuote
   initialClient?: any
   initialTemplate?: any
+  initialItems?: SelectQuoteItem[]
   onSuccess?: (quote: SelectQuote) => void
 }
 
@@ -93,6 +94,7 @@ interface QuoteFormProps {
  * @param quote - Optional existing quote data for editing
  * @param initialClient - Optional initial client data
  * @param initialTemplate - Optional initial template data
+ * @param initialItems - Optional initial line items for editing
  * @param onSuccess - Optional callback function after successful submission
  */
 export default function QuoteForm({ 
@@ -100,6 +102,7 @@ export default function QuoteForm({
   quote, 
   initialClient,
   initialTemplate,
+  initialItems = [],
   onSuccess 
 }: QuoteFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -150,7 +153,15 @@ export default function QuoteForm({
       discount: quote?.discount || "0",
       notes: quote?.notes || "",
       termsAndConditions: quote?.termsAndConditions || (initialTemplate?.termsAndConditions || ""),
-      items: [
+      items: initialItems.length > 0 ? initialItems.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate || "0",
+        taxAmount: item.taxAmount || "0",
+        subtotal: item.subtotal,
+        total: item.total
+      })) : [
         {
           description: "",
           quantity: "1",
