@@ -88,10 +88,14 @@ import { useState, useEffect } from "react"
 
 Props for the InvoiceList component
 */
+interface InvoiceWithClient extends SelectInvoice {
+  clientName?: string;
+}
+
 interface InvoiceListProps {
-invoices: SelectInvoice[]
-isLoading?: boolean
-className?: string
+  invoices: InvoiceWithClient[]
+  isLoading?: boolean
+  className?: string
 }
 
 /**
@@ -111,7 +115,7 @@ const router = useRouter()
 
 // State for search term and filtered invoices
 const [searchTerm, setSearchTerm] = useState("")
-const [filteredInvoices, setFilteredInvoices] = useState<SelectInvoice[]>(invoices)
+const [filteredInvoices, setFilteredInvoices] = useState<InvoiceWithClient[]>(invoices)
 const [statusFilter, setStatusFilter] = useState<string | null>(null)
 // State for sorting
 const [sortField, setSortField] = useState<keyof SelectInvoice>("issueDate")
@@ -128,7 +132,7 @@ if (searchTerm) {
   const lowerCaseSearch = searchTerm.toLowerCase()
   result = result.filter(invoice => 
     invoice.invoiceNumber.toLowerCase().includes(lowerCaseSearch) ||
-    (invoice.clientId && invoice.clientId.toLowerCase().includes(lowerCaseSearch))
+    (invoice.clientName && invoice.clientName.toLowerCase().includes(lowerCaseSearch))
   )
 }
 
@@ -380,7 +384,7 @@ disabled={isLoading}
                 {invoice.invoiceNumber}
               </Link>
             </TableCell>
-            <TableCell>{invoice.clientId}</TableCell>
+            <TableCell>{invoice.clientName || "No client"}</TableCell>
             <TableCell>{formatDate(invoice.issueDate.toString())}</TableCell>
             <TableCell>{formatDate(invoice.dueDate.toString())}</TableCell>
             <TableCell>{formatCurrency(invoice.total)}</TableCell>

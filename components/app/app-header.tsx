@@ -39,7 +39,9 @@ import {
 import { UserButton } from "@clerk/nextjs"
 import { 
   FileText, 
+  LayoutDashboard,
   LifeBuoy, 
+  Menu,
   MoreVertical, 
   Plus, 
   Receipt, 
@@ -47,7 +49,8 @@ import {
   Users
 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 interface AppHeaderProps {
   profile: SelectProfile
@@ -61,6 +64,7 @@ interface AppHeaderProps {
  */
 export function AppHeader({ profile }: AppHeaderProps) {
   const router = useRouter()
+  const pathname = usePathname()
   
   /**
    * Handles navigation to specified route
@@ -71,6 +75,16 @@ export function AppHeader({ profile }: AppHeaderProps) {
     router.push(route)
   }
 
+  /**
+   * Checks if the given path is the current active route
+   * 
+   * @param path Path to check
+   * @returns Boolean indicating if path is active
+   */
+  const isActive = (path: string) => {
+    return pathname?.startsWith(path)
+  }
+
   return (
     <div className="flex w-full items-center justify-between">
       {/* Left section - Business name */}
@@ -78,8 +92,109 @@ export function AppHeader({ profile }: AppHeaderProps) {
         {profile.businessName}
       </div>
       
+      {/* Middle section - Navigation links (desktop) */}
+      <div className="hidden md:flex items-center space-x-4">
+        <Link 
+          href="/app/dashboard" 
+          className={cn(
+            "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            isActive("/app/dashboard") 
+              ? "bg-primary/10 text-primary" 
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          )}
+        >
+          <LayoutDashboard className="h-4 w-4 mr-1" />
+          Dashboard
+        </Link>
+        <Link 
+          href="/app/invoices" 
+          className={cn(
+            "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            isActive("/app/invoices") 
+              ? "bg-primary/10 text-primary" 
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          )}
+        >
+          <Receipt className="h-4 w-4 mr-1" />
+          Invoices
+        </Link>
+        <Link 
+          href="/app/quotes" 
+          className={cn(
+            "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            isActive("/app/quotes") 
+              ? "bg-primary/10 text-primary" 
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          )}
+        >
+          <FileText className="h-4 w-4 mr-1" />
+          Quotes
+        </Link>
+        <Link 
+          href="/app/clients" 
+          className={cn(
+            "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            isActive("/app/clients") 
+              ? "bg-primary/10 text-primary" 
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          )}
+        >
+          <Users className="h-4 w-4 mr-1" />
+          Clients
+        </Link>
+      </div>
+      
       {/* Right section - User controls */}
       <div className="flex items-center gap-2 md:gap-4">
+        {/* Mobile Navigation Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild className="md:hidden">
+            <Button variant="ghost" size="icon">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Navigation menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 md:hidden">
+            <DropdownMenuLabel>Navigation</DropdownMenuLabel>
+            <DropdownMenuItem 
+              onClick={() => handleNavigate("/app/dashboard")}
+              className={cn(
+                isActive("/app/dashboard") && "bg-primary/10 text-primary"
+              )}
+            >
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              Dashboard
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleNavigate("/app/invoices")}
+              className={cn(
+                isActive("/app/invoices") && "bg-primary/10 text-primary"
+              )}
+            >
+              <Receipt className="mr-2 h-4 w-4" />
+              Invoices
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleNavigate("/app/quotes")}
+              className={cn(
+                isActive("/app/quotes") && "bg-primary/10 text-primary"
+              )}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Quotes
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleNavigate("/app/clients")}
+              className={cn(
+                isActive("/app/clients") && "bg-primary/10 text-primary"
+              )}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Clients
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
         {/* Quick Actions Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

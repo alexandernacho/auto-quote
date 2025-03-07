@@ -366,8 +366,8 @@ data: Partial<InsertInvoice>,
 items: SelectInvoiceItem[]
 ): Promise<ActionState<{ invoice: SelectInvoice, items: SelectInvoiceItem[] }>> {
 try {
-// Calculate new totals if items are provided
-if (items.length > 0) {
+// Calculate new totals if items are provided and totals are not
+if (items.length > 0 && (!data.subtotal || !data.taxAmount || !data.total)) {
 const { subtotal, taxAmount, total } = calculateInvoiceTotals(
 items,
 data.discount

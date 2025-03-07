@@ -10,9 +10,11 @@
  * - Presents line items in a formatted table
  * - Calculates and displays totals
  * - Provides visual indicators for confidence levels
+ * - Allows editing of extracted data
+ * - Provides a button to generate the final document
  *
  * @dependencies
- * - UI components: Badge, Card, Table
+ * - UI components: Badge, Card, Table, Button
  * - lucide-react: For icons
  * - LLMParseResult: Type definition for parsed result
  * - ConfidenceLevel: Type for confidence levels
@@ -25,12 +27,16 @@
 
 "use client"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfidenceLevel, DocumentType, LLMParseResult } from "@/types"
 import { formatCurrency, formatDate } from "@/lib/llm/utils"
-import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Edit, HelpCircle, Save } from "lucide-react"
+import { useState } from "react"
 
 /**
  * Props for LLMResults component
@@ -38,6 +44,7 @@ import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
 interface LLMResultsProps {
   result: LLMParseResult
   type: DocumentType
+  onGenerate?: (result: LLMParseResult) => void
 }
 
 /**
@@ -45,12 +52,18 @@ interface LLMResultsProps {
  *
  * @param result - The parsed LLM result data
  * @param type - The type of document ('invoice' or 'quote')
+ * @param onGenerate - Callback function when the generate button is clicked
  * @returns JSX element displaying the parsed results
  */
-export function LLMResults({ result, type }: LLMResultsProps) {
+export function LLMResults({ result, type, onGenerate }: LLMResultsProps) {
+  // State for edited result
+  const [editedResult, setEditedResult] = useState<LLMParseResult>(result)
+  // State for editing mode
+  const [isEditing, setIsEditing] = useState(false)
+  
   // Calculate totals
-  const subtotal = result.items.reduce((total, item) => total + (parseFloat(item.subtotal || "0") || 0), 0)
-  const taxAmount = result.items.reduce((total, item) => {
+  const subtotal = editedResult.items.reduce((total, item) => total + (parseFloat(item.subtotal || "0") || 0), 0)
+  const taxAmount = editedResult.items.reduce((total, item) => {
     const itemSubtotal = parseFloat(item.subtotal || "0") || 0
     const itemTotal = parseFloat(item.total || "0") || 0
     return total + (itemTotal - itemSubtotal)
@@ -71,6 +84,88 @@ export function LLMResults({ result, type }: LLMResultsProps) {
     const { bg, text, icon, label } = badges[level as keyof typeof badges]
     return <Badge className={`${bg} ${text} hover:${bg}`}>{icon}{label}</Badge>
   }
+  
+  /**
+   * Handle client field changes
+   * @param field - The field to update
+   * @param value - The new value
+   */
+  const handleClientChange = (field: keyof typeof editedResult.client, value: string) => {
+    setEditedResult(prev => ({
+      ...prev,
+      client: {
+        ...prev.client,
+        [field]: value
+      }
+    }))
+  }
+  
+  /**
+   * Handle document field changes
+   * @param field - The field to update
+   * @param value - The new value
+   */
+  const handleDocumentChange = (field: keyof typeof editedResult.document, value: string) => {
+    setEditedResult(prev => ({
+      ...prev,
+      document: {
+        ...prev.document,
+        [field]: value
+      }
+    }))
+  }
+  
+  /**
+   * Handle item field changes
+   * @param index - The index of the item to update
+   * @param field - The field to update
+   * @param value - The new value
+   */
+  const handleItemChange = (index: number, field: keyof typeof editedResult.items[0], value: string) => {
+    setEditedResult(prev => {
+      const newItems = [...prev.items]
+      newItems[index] = {
+        ...newItems[index],
+        [field]: value
+      }
+      
+      // Recalculate totals if quantity, unitPrice, or taxRate changes
+      if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate') {
+        const quantity = parseFloat(newItems[index].quantity) || 0
+        const unitPrice = parseFloat(newItems[index].unitPrice) || 0
+        const taxRate = parseFloat(newItems[index].taxRate || "0") || 0
+        
+        const subtotal = (quantity * unitPrice).toFixed(2)
+        const taxAmount = (quantity * unitPrice * taxRate / 100).toFixed(2)
+        const total = (parseFloat(subtotal) + parseFloat(taxAmount)).toFixed(2)
+        
+        newItems[index].subtotal = subtotal
+        newItems[index].taxAmount = taxAmount
+        newItems[index].total = total
+      }
+      
+      return {
+        ...prev,
+        items: newItems
+      }
+    })
+  }
+  
+  /**
+   * Toggle editing mode
+   */
+  const toggleEditing = () => {
+    setIsEditing(!isEditing)
+  }
+  
+  /**
+   * Handle generate button click
+   */
+  const handleGenerate = () => {
+    if (onGenerate) {
+      onGenerate(editedResult)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -79,27 +174,43 @@ export function LLMResults({ result, type }: LLMResultsProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Client Information</CardTitle>
-            {getConfidenceBadge(result.client.confidence as ConfidenceLevel)}
+            {getConfidenceBadge(editedResult.client.confidence as ConfidenceLevel)}
           </div>
           <CardDescription>Review the identified client details</CardDescription>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             {[
-              { label: "Name", value: result.client.name },
-              { label: "Email", value: result.client.email },
-              { label: "Phone", value: result.client.phone },
-              { label: "Tax Number", value: result.client.taxNumber }
-            ].map(({ label, value }) => (
+              { label: "Name", value: editedResult.client.name, field: "name" as const },
+              { label: "Email", value: editedResult.client.email, field: "email" as const },
+              { label: "Phone", value: editedResult.client.phone, field: "phone" as const },
+              { label: "Tax Number", value: editedResult.client.taxNumber, field: "taxNumber" as const }
+            ].map(({ label, value, field }) => (
               <div key={label}>
                 <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-                <dd className="text-sm font-semibold">{value || "Not specified"}</dd>
+                {isEditing ? (
+                  <Input 
+                    value={value || ""} 
+                    onChange={(e) => handleClientChange(field, e.target.value)}
+                    className="mt-1"
+                  />
+                ) : (
+                  <dd className="text-sm font-semibold">{value || "Not specified"}</dd>
+                )}
               </div>
             ))}
-            {result.client.address && (
+            {editedResult.client.address && (
               <div className="col-span-2">
                 <dt className="text-sm font-medium text-muted-foreground">Address</dt>
-                <dd className="text-sm">{result.client.address}</dd>
+                {isEditing ? (
+                  <Textarea 
+                    value={editedResult.client.address} 
+                    onChange={(e) => handleClientChange("address", e.target.value)}
+                    className="mt-1"
+                  />
+                ) : (
+                  <dd className="text-sm">{editedResult.client.address}</dd>
+                )}
               </div>
             )}
           </dl>
@@ -116,25 +227,69 @@ export function LLMResults({ result, type }: LLMResultsProps) {
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
               <dt className="text-sm font-medium text-muted-foreground">Issue Date</dt>
-              <dd className="text-sm">{formatDate(result.document.issueDate || new Date())}</dd>
+              {isEditing ? (
+                <Input 
+                  type="date" 
+                  value={editedResult.document.issueDate ? new Date(editedResult.document.issueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} 
+                  onChange={(e) => handleDocumentChange("issueDate", new Date(e.target.value).toISOString())}
+                  className="mt-1"
+                />
+              ) : (
+                <dd className="text-sm">{formatDate(editedResult.document.issueDate || new Date())}</dd>
+              )}
             </div>
             <div>
               <dt className="text-sm font-medium text-muted-foreground">
                 {type === 'invoice' ? 'Due Date' : 'Valid Until'}
               </dt>
-              <dd className="text-sm">
-                {formatDate(type === 'invoice' 
-                  ? result.document.dueDate || new Date(Date.now() + 30*24*60*60*1000) 
-                  : result.document.validUntil || new Date(Date.now() + 30*24*60*60*1000)
-                )}
-              </dd>
+              {isEditing ? (
+                <Input 
+                  type="date" 
+                  value={
+                    type === 'invoice' 
+                      ? (editedResult.document.dueDate ? new Date(editedResult.document.dueDate).toISOString().split('T')[0] : new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0])
+                      : (editedResult.document.validUntil ? new Date(editedResult.document.validUntil).toISOString().split('T')[0] : new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0])
+                  } 
+                  onChange={(e) => handleDocumentChange(
+                    type === 'invoice' ? "dueDate" : "validUntil", 
+                    new Date(e.target.value).toISOString()
+                  )}
+                  className="mt-1"
+                />
+              ) : (
+                <dd className="text-sm">
+                  {formatDate(type === 'invoice' 
+                    ? editedResult.document.dueDate || new Date(Date.now() + 30*24*60*60*1000) 
+                    : editedResult.document.validUntil || new Date(Date.now() + 30*24*60*60*1000)
+                  )}
+                </dd>
+              )}
             </div>
-            {result.document.notes && (
-              <div className="col-span-2">
-                <dt className="text-sm font-medium text-muted-foreground">Notes</dt>
-                <dd className="text-sm whitespace-pre-wrap">{result.document.notes}</dd>
-              </div>
-            )}
+            <div className="col-span-2">
+              <dt className="text-sm font-medium text-muted-foreground">Notes</dt>
+              {isEditing ? (
+                <Textarea 
+                  value={editedResult.document.notes || ""} 
+                  onChange={(e) => handleDocumentChange("notes", e.target.value)}
+                  className="mt-1"
+                />
+              ) : (
+                <dd className="text-sm whitespace-pre-wrap">{editedResult.document.notes || "No notes"}</dd>
+              )}
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Discount</dt>
+              {isEditing ? (
+                <Input 
+                  type="number" 
+                  value={editedResult.document.discount || "0"} 
+                  onChange={(e) => handleDocumentChange("discount", e.target.value)}
+                  className="mt-1"
+                />
+              ) : (
+                <dd className="text-sm">{formatCurrency(editedResult.document.discount || "0")}</dd>
+              )}
+            </div>
           </dl>
         </CardContent>
       </Card>
@@ -149,22 +304,61 @@ export function LLMResults({ result, type }: LLMResultsProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                {["Description", "Quantity", "Unit Price", "Tax Rate", "Total"].map((header, i) => (
-                  <TableHead key={header} className={i > 0 ? "text-right" : ""}>
-                    {header}
-                  </TableHead>
-                ))}
+                <TableHead className="w-[40%]">Description</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Unit Price</TableHead>
+                <TableHead>Tax Rate</TableHead>
+                <TableHead className="text-right">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {result.items.map((item, index) => (
+              {editedResult.items.map((item, index) => (
                 <TableRow key={index}>
-                  <TableCell className="font-medium">{item.description}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                  <TableCell className="text-right">{item.taxRate ? `${item.taxRate}%` : "0%"}</TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input 
+                        value={item.description} 
+                        onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                      />
+                    ) : (
+                      item.description
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input 
+                        type="number" 
+                        value={item.quantity} 
+                        onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                      />
+                    ) : (
+                      item.quantity
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input 
+                        type="number" 
+                        value={item.unitPrice} 
+                        onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+                      />
+                    ) : (
+                      formatCurrency(item.unitPrice)
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input 
+                        type="number" 
+                        value={item.taxRate || "0"} 
+                        onChange={(e) => handleItemChange(index, "taxRate", e.target.value)}
+                      />
+                    ) : (
+                      `${item.taxRate || "0"}%`
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(item.total || (parseFloat(item.quantity || "1") * parseFloat(item.unitPrice || "0")).toString())}
+                    {formatCurrency(item.total || (parseFloat(item.subtotal || "0") + parseFloat(item.taxAmount || "0")).toString())}
                   </TableCell>
                 </TableRow>
               ))}
@@ -180,16 +374,16 @@ export function LLMResults({ result, type }: LLMResultsProps) {
                   <TableCell className="text-right">{formatCurrency(taxAmount.toString())}</TableCell>
                 </TableRow>
               )}
-              {result.document.discount && parseFloat(result.document.discount) > 0 && (
+              {editedResult.document.discount && parseFloat(editedResult.document.discount) > 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-right">Discount</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(result.document.discount)}</TableCell>
+                  <TableCell className="text-right">-{formatCurrency(editedResult.document.discount)}</TableCell>
                 </TableRow>
               )}
               <TableRow>
                 <TableCell colSpan={4} className="text-right font-bold">Total</TableCell>
                 <TableCell className="text-right font-bold">
-                  {formatCurrency((subtotal + taxAmount - (parseFloat(result.document.discount || "0") || 0)).toString())}
+                  {formatCurrency((subtotal + taxAmount - (parseFloat(editedResult.document.discount || "0") || 0)).toString())}
                 </TableCell>
               </TableRow>
             </TableFooter>
@@ -198,7 +392,7 @@ export function LLMResults({ result, type }: LLMResultsProps) {
       </Card>
       
       {/* Clarification needed warning */}
-      {result.needsClarification && (
+      {editedResult.needsClarification && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -213,6 +407,34 @@ export function LLMResults({ result, type }: LLMResultsProps) {
           </Tooltip>
         </TooltipProvider>
       )}
+      
+      {/* Action buttons */}
+      <div className="flex justify-between">
+        <Button 
+          variant="outline" 
+          onClick={toggleEditing}
+          className="flex items-center gap-2"
+        >
+          {isEditing ? (
+            <>
+              <Save className="h-4 w-4" />
+              Save Changes
+            </>
+          ) : (
+            <>
+              <Edit className="h-4 w-4" />
+              Edit Details
+            </>
+          )}
+        </Button>
+        
+        <Button 
+          onClick={handleGenerate}
+          className="flex items-center gap-2"
+        >
+          Generate {type === 'invoice' ? 'Invoice' : 'Quote'}
+        </Button>
+      </div>
     </div>
   )
 }

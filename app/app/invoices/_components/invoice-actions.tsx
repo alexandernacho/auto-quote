@@ -1,348 +1,147 @@
 /**
-
-@file Invoice actions component
-@description
-This component provides action buttons for invoice operations like
-downloading, duplicating, deleting, and changing status.
-
-Key features:
-Status-aware action buttons
-Confirmation dialogs for destructive actions
-Download functionality
-Status update capabilities
-@dependencies
-ShadCN UI: For button, dropdown, and dialog components
-deleteInvoiceAction: For invoice deletion
-updateInvoiceStatusAction: For updating invoice status
-generateDocumentAction: For document generation
-@notes
-Client-side component to allow for interactive features
-Handles confirmation for destructive actions
-Provides appropriate feedback for actions
-*/
+ * @file Invoice actions component
+ * @description
+ * Provides action buttons for individual invoices, including
+ * edit, download PDF, and delete options.
+ * 
+ * @dependencies
+ * - Button: UI component from shadcn
+ * - DropdownMenu: UI component from shadcn
+ * - SelectInvoice: Type from db schema
+ * 
+ * @notes
+ * - Client component for interactive features
+ * - Uses dropdown menu for multiple actions
+ */
 
 "use client"
+
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { SelectInvoice } from "@/db/schema"
+import { Download, Edit, MoreHorizontal, Trash } from "lucide-react"
+import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from "@/components/ui/alert-dialog"
-import { SelectInvoice } from "@/db/schema"
-import { deleteInvoiceAction, updateInvoiceStatusAction } from "@/actions/db/invoices-actions"
-import {
-  CheckCircle, Copy, Download, MoreVertical,
-  Send, Trash, Ban, AlertTriangle, Edit
-} from "lucide-react"
-import Link from "next/link"
+import { generateDocumentAction } from "@/actions/document-actions"
+import { toast } from "@/components/ui/use-toast"
 
-/**
- * Props for the InvoiceActions component
- */
 interface InvoiceActionsProps {
   invoice: SelectInvoice
-  variant?: "dropdown" | "buttons"
 }
 
 /**
- * Component for invoice actions (view, edit, delete, etc.)
- * Can be displayed as a dropdown or as buttons
+ * Provides action buttons for an individual invoice
+ * 
+ * @param invoice - The invoice data
  */
-export function InvoiceActions({
-  invoice,
-  variant = "dropdown"
-}: InvoiceActionsProps) {
+export function InvoiceActions({ invoice }: InvoiceActionsProps) {
   const router = useRouter()
-  const { toast } = useToast()
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  /**
-   * Handle invoice deletion
-   */
+  // Function to handle invoice deletion (placeholder for now)
   const handleDelete = async () => {
-    setIsDeleting(true)
+    if (!confirm("Are you sure you want to delete this invoice?")) {
+      return
+    }
+    
+    setIsLoading(true)
+    
     try {
-      const result = await deleteInvoiceAction(invoice.id)
-      if (result.isSuccess) {
-        toast({
-          title: "Success",
-          description: "Invoice deleted successfully"
-        })
-        // Navigate back to invoices list
-        router.push("/app/invoices")
-        router.refresh()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive"
-        })
-      }
+      // This would be replaced with an actual delete action
+      // await deleteInvoiceAction(invoice.id)
+      router.push("/app/invoices")
+      router.refresh()
     } catch (error) {
       console.error("Error deleting invoice:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete invoice",
-        variant: "destructive"
-      })
+      alert("Failed to delete invoice")
     } finally {
-      setIsDeleting(false)
+      setIsLoading(false)
     }
   }
 
-  /**
-   * Handle invoice status update
-   */
-  const handleUpdateStatus = async (newStatus: string) => {
-    setIsUpdatingStatus(true)
+  // Function to handle PDF download
+  const handleDownloadPdf = async () => {
+    setIsLoading(true)
+    
     try {
-      const result = await updateInvoiceStatusAction(invoice.id, newStatus as any)
-      if (result.isSuccess) {
+      const result = await generateDocumentAction('invoice', invoice.id, 'pdf')
+      
+      if (result.isSuccess && result.data.url) {
+        // Open the URL in a new tab
+        window.open(result.data.url, '_blank')
+        
         toast({
-          title: "Success",
-          description: `Invoice marked as ${newStatus}`
+          title: "PDF Generated",
+          description: "Your invoice PDF has been generated and is ready to download."
         })
-        router.refresh()
       } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive"
-        })
+        throw new Error(result.message || "Failed to generate PDF")
       }
     } catch (error) {
-      console.error("Error updating invoice status:", error)
+      console.error("Error generating PDF:", error)
       toast({
         title: "Error",
-        description: "Failed to update invoice status",
+        description: "Failed to generate PDF. Please try again.",
         variant: "destructive"
       })
     } finally {
-      setIsUpdatingStatus(false)
+      setIsLoading(false)
     }
   }
 
-  /**
-   * Handle invoice download
-   */
-  const handleDownload = async (format: 'pdf' | 'docx') => {
-    // This would be replaced with actual download functionality
-    toast({
-      title: "Download Started",
-      description: `Downloading invoice as ${format.toUpperCase()}`
-    })
-  }
-
-  /**
-   * Render dropdown menu for invoice actions
-   */
-  const renderDropdown = () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <MoreVertical className="h-4 w-4" />
-          <span className="sr-only">Actions</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {/* Edit action */}
-        <DropdownMenuItem asChild>
-          <Link href={`/app/invoices/${invoice.id}/edit`}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Invoice
-          </Link>
-        </DropdownMenuItem>
-        {/* Download options */}
-        <DropdownMenuItem onSelect={(e) => {
-          e.preventDefault()
-          handleDownload('pdf')
-        }}>
-          <Download className="mr-2 h-4 w-4" />
-          Download PDF
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={(e) => {
-          e.preventDefault()
-          handleDownload('docx')
-        }}>
-          <Download className="mr-2 h-4 w-4" />
-          Download DOCX
-        </DropdownMenuItem>
-        {/* Duplicate action */}
-        <DropdownMenuItem asChild>
-          <Link href={`/app/invoices/duplicate/${invoice.id}`}>
-            <Copy className="mr-2 h-4 w-4" />
-            Duplicate
-          </Link>
-        </DropdownMenuItem>
-        {/* Status update options based on current status */}
-        {invoice.status === 'draft' && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              handleUpdateStatus('sent')
-            }}
-            disabled={isUpdatingStatus}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            Mark as Sent
-          </DropdownMenuItem>
-        )}
-        {(invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              handleUpdateStatus('paid')
-            }}
-            disabled={isUpdatingStatus}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Mark as Paid
-          </DropdownMenuItem>
-        )}
-        {(invoice.status === 'draft' || invoice.status === 'sent') && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              handleUpdateStatus('canceled')
-            }}
-            disabled={isUpdatingStatus}
-          >
-            <Ban className="mr-2 h-4 w-4" />
-            Mark as Canceled
-          </DropdownMenuItem>
-        )}
-        {invoice.status === 'sent' && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault()
-              handleUpdateStatus('overdue')
-            }}
-            disabled={isUpdatingStatus}
-          >
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Mark as Overdue
-          </DropdownMenuItem>
-        )}
-        {/* Delete action with confirmation */}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <DropdownMenuItem
-              onSelect={(e) => e.preventDefault()}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash className="mr-2 h-4 w-4" />
-              Delete Invoice
-            </DropdownMenuItem>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the invoice
-                and remove it from our servers.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-
-  /**
-   * Render buttons for invoice actions
-   */
-  const renderButtons = () => (
-    <div className="flex flex-wrap gap-2">
-      {/* Edit button */}
-      <Button variant="outline" asChild>
+  return (
+    <div className="flex items-center gap-2">
+      <Button 
+        variant="outline" 
+        size="sm"
+        disabled={isLoading}
+        onClick={handleDownloadPdf}
+      >
+        <Download className="h-4 w-4 mr-2" />
+        Download PDF
+      </Button>
+      
+      <Button 
+        variant="outline" 
+        size="sm"
+        asChild
+        disabled={isLoading}
+      >
         <Link href={`/app/invoices/${invoice.id}/edit`}>
+          <Edit className="h-4 w-4 mr-2" />
           Edit
         </Link>
       </Button>
-      {/* Download button */}
-      <Button
-        variant="outline"
-        onClick={() => handleDownload('pdf')}
-      >
-        <Download className="mr-2 h-4 w-4" />
-        Download
-      </Button>
-      {/* Status update buttons based on current status */}
-      {invoice.status === 'draft' && (
-        <Button
-          onClick={() => handleUpdateStatus('sent')}
-          disabled={isUpdatingStatus}
-          className="bg-blue-500 hover:bg-blue-600"
-        >
-          <Send className="mr-2 h-4 w-4" />
-          Mark as Sent
-        </Button>
-      )}
-      {(invoice.status === 'draft' || invoice.status === 'sent' || invoice.status === 'overdue') && (
-        <Button
-          onClick={() => handleUpdateStatus('paid')}
-          disabled={isUpdatingStatus}
-          className="bg-green-500 hover:bg-green-600"
-        >
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Mark as Paid
-        </Button>
-      )}
-      {/* Delete button with confirmation */}
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="destructive">
-            <Trash className="mr-2 h-4 w-4" />
-            Delete
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            disabled={isLoading}
+          >
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the invoice
-              and remove it from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem 
+            onClick={handleDelete}
+            className="text-red-600 cursor-pointer"
+            disabled={isLoading}
+          >
+            <Trash className="h-4 w-4 mr-2" />
+            Delete Invoice
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
-
-  // Return the appropriate variant
-  return variant === "dropdown" ? renderDropdown() : renderButtons()
 }
+
+export default InvoiceActions

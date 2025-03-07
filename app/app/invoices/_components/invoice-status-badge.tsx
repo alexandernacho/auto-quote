@@ -68,6 +68,8 @@ Canceled: Gray
 
 "use client"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+
 /**
  * Props for the InvoiceStatusBadge component
  */
@@ -87,33 +89,22 @@ export function InvoiceStatusBadge({
   status,
   className
 }: InvoiceStatusBadgeProps) {
-  /**
-   * Get appropriate CSS classes based on status
-   * @returns CSS class string for the status
-   */
-  const getStatusStyles = () => {
-    switch (status) {
-      case 'draft':
-        return "bg-gray-200 text-gray-800"
-      case 'sent':
-        return "bg-blue-100 text-blue-800"
-      case 'paid':
-        return "bg-green-100 text-green-800"
-      case 'overdue':
-        return "bg-red-100 text-red-800"
-      case 'canceled':
-        return "bg-gray-100 text-gray-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
+  const statusStyles: Record<string, string> = {
+    draft: "bg-gray-200 text-gray-800",
+    sent: "bg-blue-100 text-blue-800",
+    paid: "bg-green-100 text-green-800",
+    overdue: "bg-red-100 text-red-800",
+    canceled: "bg-gray-100 text-gray-800"
   }
 
   // Capitalize the first letter of status for display
   const displayStatus = status.charAt(0).toUpperCase() + status.slice(1)
   
   return (
-    <Badge className={`${getStatusStyles()} ${className || ""}`}>
+    <Badge className={cn(statusStyles[status] || "", className)}>
       {displayStatus}
     </Badge>
   )
 }
+
+export default InvoiceStatusBadge

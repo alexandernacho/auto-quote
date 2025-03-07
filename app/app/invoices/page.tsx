@@ -60,6 +60,7 @@ Uses client components for interactive elements
 
 "use server"
 import { getInvoicesByUserIdAction } from "@/actions/db/invoices-actions"
+import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { auth } from "@clerk/nextjs/server"
@@ -87,6 +88,23 @@ return redirect("/login")
 // Fetch invoices for the authenticated user
 const invoicesResult = await getInvoicesByUserIdAction(userId)
 const invoices = invoicesResult.isSuccess ? invoicesResult.data : []
+
+// Fetch clients for the authenticated user
+const clientsResult = await getClientsByUserIdAction(userId)
+const clients = clientsResult.isSuccess ? clientsResult.data : []
+
+// Create a map of client IDs to client names for quick lookup
+const clientMap = new Map()
+clients.forEach(client => {
+  clientMap.set(client.id, client.name)
+})
+
+// Add client names to invoices
+const invoicesWithClientNames = invoices.map(invoice => ({
+  ...invoice,
+  clientName: invoice.clientId ? clientMap.get(invoice.clientId) : undefined
+}))
+
 return (
 <div className="space-y-6">
 {/* Page header with title and add invoice button */}
@@ -108,7 +126,7 @@ New Invoice
   {invoices.length === 0 ? (
     <EmptyInvoiceState />
   ) : (
-    <InvoiceList invoices={invoices} />
+    <InvoiceList invoices={invoicesWithClientNames} />
   )}
 </div>
 )

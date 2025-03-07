@@ -6,8 +6,7 @@
 
 "use client"
 
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import InvoiceForm from "../../_components/invoice-form"
 
 interface ManualInvoiceCreatorProps {
   userId: string
@@ -24,20 +23,10 @@ export function ManualInvoiceCreator({
   initialTemplate
 }: ManualInvoiceCreatorProps) {
   return (
-    <div className="flex flex-col items-center justify-center space-y-4 py-8">
-      <p className="text-center">
-        Use the form below to create an invoice manually.
-      </p>
-      
-      <Button asChild className="bg-blue-500 hover:bg-blue-600">
-        <Link href="/app/invoices/manual-entry">
-          Open Invoice Form
-        </Link>
-      </Button>
-      
-      <p className="text-xs text-muted-foreground">
-        The manual form will include client selection, invoice details, and item entry.
-      </p>
-    </div>
+    <InvoiceForm 
+      userId={userId} 
+      initialClient={initialClient}
+      initialTemplate={initialTemplate}
+    />
   )
 } 
