@@ -16,7 +16,7 @@ import QuoteForm from "../../_components/quote-form"
 export default async function QuoteEditPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   // Get authenticated user
   const { userId } = await auth()
@@ -26,7 +26,8 @@ export default async function QuoteEditPage({
   }
   
   // Fetch quote data
-  const quoteResult = await getQuoteByIdAction(params.id)
+  const { id } = await params
+  const quoteResult = await getQuoteByIdAction(id)
   
   // If quote not found or doesn't belong to user, show 404
   if (!quoteResult.isSuccess || quoteResult.data.userId !== userId) {
@@ -36,7 +37,7 @@ export default async function QuoteEditPage({
   const quote = quoteResult.data
   
   // Fetch quote items
-  const itemsResult = await getQuoteItemsByQuoteIdAction(params.id)
+  const itemsResult = await getQuoteItemsByQuoteIdAction(id)
   const items = itemsResult.isSuccess ? itemsResult.data : []
   
   return (

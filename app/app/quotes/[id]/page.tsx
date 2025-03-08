@@ -49,7 +49,11 @@ import { QuoteActions } from "../_components/quote-actions"
  * @param params - Contains the quote ID from the URL
  * @returns JSX component for the individual quote page
  */
-export default async function QuotePage({ params }: { params: { id: string } }) {
+export default async function QuotePage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
   // Get authenticated user ID
   const { userId } = await auth()
 
@@ -59,7 +63,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
   }
 
   // Get the quote ID from the URL params
-  const { id } = params
+  const { id } = await params
 
   // Verify the user owns this quote
   const ownershipResult = await verifyQuoteOwnerAction(id, userId)
