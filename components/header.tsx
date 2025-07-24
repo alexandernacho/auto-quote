@@ -47,11 +47,7 @@ type NavLink = {
 /**
  * Marketing site navigation links
  */
-const navLinks: NavLink[] = [
-  { href: "/about", label: "About" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/contact", label: "Contact" }
-]
+const navLinks: NavLink[] = []
 
 /**
  * Additional navigation links for authenticated users
