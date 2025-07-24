@@ -83,15 +83,23 @@ export function LLMInputForm({
       return
     }
 
+    console.log(`🚀 Starting LLM processing for ${type}:`, text.substring(0, 100) + '...')
+    
     // Begin processing
     setIsProcessing(true)
 
     try {
       // Call the server action to parse text
+      console.log('📡 Calling parseLLMTextAction with:', { userId, type, textLength: text.length })
       const result = await parseLLMTextAction(text, userId, type)
       
+      console.log('📥 LLM Action Result:', result)
+      
       if (result.isSuccess) {
+        console.log('✅ LLM processing successful, data:', result.data)
+        
         // Pass result to parent component with context
+        console.log('🔄 Calling onParsedResult with:', { data: result.data, userId, type })
         onParsedResult(result.data, userId, type)
         
         // Show success message
@@ -100,6 +108,8 @@ export function LLMInputForm({
           description: "Successfully processed your text"
         })
       } else {
+        console.warn('⚠️ LLM processing failed:', result.message)
+        
         // Show error message but still try to use the data if available
         toast({
           title: "Warning",
@@ -142,11 +152,12 @@ export function LLMInputForm({
           rawText: text
         }
         
+        console.log('🔄 Using fallback response:', fallbackResponse)
         // Pass the fallback response to parent with context
         onParsedResult(fallbackResponse, userId, type)
       }
     } catch (error) {
-      console.error("Error processing text:", error)
+      console.error("❌ Error processing text:", error)
       
       // Show generic error message
       toast({
@@ -158,6 +169,7 @@ export function LLMInputForm({
       // Reset processing state
       setIsProcessing(false)
     } finally {
+      console.log('🏁 LLM processing finished, resetting state')
       setIsProcessing(false)
     }
   }

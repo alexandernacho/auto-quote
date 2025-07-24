@@ -62,16 +62,22 @@ export function useLLMProcessing() {
    * @param type - The document type for context
    */
   const handleParsedResult = (result: LLMParseResult, userId?: string, type?: 'invoice' | 'quote') => {
+    console.log('🎯 handleParsedResult called with:', { result, userId, type })
+    console.log('📊 Current state before update:', state)
+    
     setParseResult(result)
     setOriginalText(result.rawText || '')
     
     // Store context for later use
     if (userId && type) {
+      console.log('💾 Storing context:', { userId, type })
       setContext({ userId, type })
     }
     
     // If clarification is needed, move to clarification state
     if (result.needsClarification && result.clarificationQuestions?.length) {
+      console.log('❓ Clarification needed, moving to clarification state')
+      console.log('📝 Clarification questions:', result.clarificationQuestions)
       setState('clarification')
       
       // Initialize clarification answers array with empty strings
@@ -80,8 +86,11 @@ export function useLLMProcessing() {
       )
     } else {
       // No clarification needed, move to review state
+      console.log('✅ No clarification needed, moving to review state')
       setState('review')
     }
+    
+    console.log('📊 State should now be:', result.needsClarification && result.clarificationQuestions?.length ? 'clarification' : 'review')
   }
   
   /**

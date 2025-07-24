@@ -51,20 +51,35 @@ export async function parseLLMTextAction(
   userId: string,
   type: 'invoice' | 'quote'
 ): Promise<ActionState<LLMParseResult>> {
+  console.log('🔥 parseLLMTextAction called with:', { 
+    textLength: text.length, 
+    userId, 
+    type,
+    textPreview: text.substring(0, 100) + '...'
+  })
+  
   try {
     // Get user profile and existing clients for context
+    console.log('👤 Fetching user profile for:', userId)
     const profileResult = await getProfileByUserIdAction(userId)
     
     if (!profileResult.isSuccess) {
+      console.error('❌ Failed to fetch user profile:', profileResult.message)
       throw new Error("Failed to fetch user profile")
     }
     
+    console.log('✅ User profile fetched successfully')
+    
+    console.log('👥 Fetching clients for:', userId)
     const clientsResult = await getClientsByUserIdAction(userId)
     const clients = clientsResult.isSuccess ? clientsResult.data : []
+    console.log(`✅ Found ${clients.length} clients`)
     
     // Get existing products
+    console.log('🛍️ Fetching products for:', userId)
     const productsResult = await getProductsByUserIdAction(userId)
     const products = productsResult.isSuccess ? productsResult.data : []
+    console.log(`✅ Found ${products.length} products`)
     
     // Build parsing context
     const context: LLMParseContext = {
@@ -76,13 +91,16 @@ export async function parseLLMTextAction(
     }
     
     // Build the appropriate prompt based on document type
+    console.log(`📝 Building ${type} parser prompt`)
     const prompt = type === 'invoice' 
       ? buildInvoiceParserPrompt(context)
       : buildQuoteParserPrompt(context)
+    console.log('📝 Prompt built, length:', prompt.length)
     
     // Use OpenAI for parsing with timeout
     let parsedData: LLMParseResult
     try {
+      console.log('🤖 Starting OpenAI processing...')
       // Add a timeout wrapper to prevent Vercel function timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('OpenAI request timeout')), 25000) // 25 second timeout
@@ -92,10 +110,14 @@ export async function parseLLMTextAction(
         parseWithOpenAI(prompt, type),
         timeoutPromise
       ])
+      console.log('✅ OpenAI processing completed successfully')
+      console.log('📊 Parsed data:', parsedData)
     } catch (error) {
-      console.error("OpenAI parsing failed:", error)
+      console.error("❌ OpenAI parsing failed:", error)
       // Return a basic fallback response if OpenAI fails
+      console.log('🔄 Using fallback response')
       parsedData = createFallbackResponse(text, type)
+      console.log('📊 Fallback data:', parsedData)
     }
     
     // Add raw text for reference
@@ -201,12 +223,25 @@ export async function parseLLMTextAction(
       }
     }
     
-    return createSuccessResponse(
+    console.log('✅ Final parsed data ready:', {
+      hasClient: !!parsedData.client,
+      clientName: parsedData.client?.name,
+      clientId: parsedData.client?.id,
+      itemsCount: parsedData.items?.length || 0,
+      needsClarification: parsedData.needsClarification,
+      clarificationQuestions: parsedData.clarificationQuestions?.length || 0
+    })
+    
+    const result = createSuccessResponse(
       parsedData,
       "Text parsed successfully",
       { operation: 'read', entityName: 'text' }
     )
+    
+    console.log('🎉 Returning success response')
+    return result
   } catch (error) {
+    console.error('💥 parseLLMTextAction error:', error)
     return handleActionError(error, {
       actionName: 'parseLLMTextAction',
       entityName: 'text',

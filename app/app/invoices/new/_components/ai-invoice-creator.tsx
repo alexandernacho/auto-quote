@@ -7,16 +7,11 @@
 
 "use client"
 import { createInvoiceAction } from "@/actions/db/invoices-actions"
-import { LLMInputForm, LLMProcessing, LLMResults } from "@/components/app/llm"
+import { LLMProcessing } from "@/components/app/llm"
 import { useToast } from "@/components/ui/use-toast"
-import { useLLMProcessing } from "@/lib/hooks/use-llm-processing"
 import { LLMParseResult } from "@/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Check, Edit } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Button } from "@/components/ui/button"
 
 interface AIInvoiceCreatorProps {
   userId: string
@@ -34,14 +29,6 @@ export function AIInvoiceCreator({
   initialTemplate,
   onSwitchToManual
 }: AIInvoiceCreatorProps) {
-  // Get LLM processing state from custom hook
-  const {
-    state,
-    parseResult,
-    handleParsedResult,
-    handleReset
-  } = useLLMProcessing()
-  
   const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
@@ -165,41 +152,13 @@ export function AIInvoiceCreator({
 
   return (
     <div className="space-y-4">
-      {state === 'input' && (
-        <LLMInputForm 
-          userId={userId} 
-          type="invoice" 
-          onParsedResult={(result, userId, type) => handleParsedResult(result, userId, type)} 
-        />
-      )}
-      
-      {state === 'processing' && (
-        <LLMProcessing 
-          userId={userId}
-          type="invoice"
-          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
-          onCancel={onSwitchToManual}
-        />
-      )}
-      
-      {state === 'clarification' && (
-        <LLMProcessing 
-          userId={userId}
-          type="invoice"
-          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
-          onCancel={onSwitchToManual}
-        />
-      )}
-      
-      {state === 'review' && parseResult && (
-        <LLMProcessing 
-          userId={userId}
-          type="invoice"
-          onComplete={(result) => handleParsedResult(result, userId, "invoice")}
-          onCancel={onSwitchToManual}
-          onGenerate={handleGenerateInvoice}
-        />
-      )}
+      <LLMProcessing 
+        userId={userId}
+        type="invoice"
+        onComplete={(result) => console.log('Invoice processing complete:', result)}
+        onCancel={onSwitchToManual}
+        onGenerate={handleGenerateInvoice}
+      />
     </div>
   )
 }
