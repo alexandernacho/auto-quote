@@ -18,7 +18,7 @@
 
 "use server"
 
-import { getClientsByUserIdAction } from "@/actions/db/clients-actions"
+import { getClientsByUserIdAction, createClientAction } from "@/actions/db/clients-actions"
 import { getProductsByUserIdAction } from "@/actions/db/products-actions"
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
 import { SelectClient, SelectProduct } from "@/db/schema"
@@ -123,74 +123,105 @@ export async function parseLLMTextAction(
     // Add raw text for reference
     parsedData.rawText = text
     
-    // If no client ID was assigned by the LLM, try to match automatically
-    // Use the already fetched clients to avoid additional database calls
-    if (parsedData.client && parsedData.client.name && !parsedData.client.id && clients.length > 0) {
+    // If no client ID was assigned by the LLM, try to match automatically or create new client
+    if (parsedData.client && parsedData.client.name && !parsedData.client.id) {
       try {
-        // Inline client matching logic to avoid timeout
-        const scoredClients = clients.map(client => {
-          let score = 0
-          
-          // Calculate name similarity (weighted highest)
-          if (parsedData.client.name && client.name) {
-            const nameSimilarity = calculateStringSimilarity(parsedData.client.name, client.name)
-            score += nameSimilarity * 3
-          }
-          
-          // Email exact match
-          if (parsedData.client.email && client.email && 
-              parsedData.client.email.toLowerCase() === client.email.toLowerCase()) {
-            score += 5
-          }
-          
-          // Phone match
-          if (parsedData.client.phone && client.phone) {
-            const normalizedInput = normalizePhone(parsedData.client.phone)
-            const normalizedStored = normalizePhone(client.phone)
-            if (normalizedInput === normalizedStored) {
+        // First, try to match with existing clients if any exist
+        if (clients.length > 0) {
+          // Inline client matching logic to avoid timeout
+          const scoredClients = clients.map(client => {
+            let score = 0
+            
+            // Calculate name similarity (weighted highest)
+            if (parsedData.client.name && client.name) {
+              const nameSimilarity = calculateStringSimilarity(parsedData.client.name, client.name)
+              score += nameSimilarity * 3
+            }
+            
+            // Email exact match
+            if (parsedData.client.email && client.email && 
+                parsedData.client.email.toLowerCase() === client.email.toLowerCase()) {
+              score += 5
+            }
+            
+            // Phone match
+            if (parsedData.client.phone && client.phone) {
+              const normalizedInput = normalizePhone(parsedData.client.phone)
+              const normalizedStored = normalizePhone(client.phone)
+              if (normalizedInput === normalizedStored) {
+                score += 4
+              }
+            }
+            
+            // Address similarity
+            if (parsedData.client.address && client.address) {
+              const addressSimilarity = calculateStringSimilarity(parsedData.client.address, client.address)
+              score += addressSimilarity * 2
+            }
+            
+            // Tax number match
+            if (parsedData.client.taxNumber && client.taxNumber && 
+                parsedData.client.taxNumber === client.taxNumber) {
               score += 4
             }
-          }
+            
+            return { client, score }
+          })
           
-          // Address similarity
-          if (parsedData.client.address && client.address) {
-            const addressSimilarity = calculateStringSimilarity(parsedData.client.address, client.address)
-            score += addressSimilarity * 2
-          }
+          // Sort by score and get top match
+          const topMatch = scoredClients.sort((a, b) => b.score - a.score)[0]
           
-          // Tax number match
-          if (parsedData.client.taxNumber && client.taxNumber && 
-              parsedData.client.taxNumber === client.taxNumber) {
-            score += 4
+          if (topMatch && topMatch.score > 0) {
+            // Determine confidence level
+            let confidence: ConfidenceLevel = 'low'
+            if (topMatch.score > 8) {
+              confidence = 'high'
+            } else if (topMatch.score > 4) {
+              confidence = 'medium'
+            }
+            
+            // Auto-assign if confidence is high
+            if (confidence === 'high') {
+              parsedData.client.id = topMatch.client.id
+              parsedData.client.matchConfidence = 'high'
+              console.log('✅ Auto-assigned existing client with high confidence:', topMatch.client.name)
+            } else if (confidence === 'medium') {
+              // Store the top match for user confirmation
+              parsedData.client.suggestedMatch = topMatch.client
+              parsedData.client.matchConfidence = 'medium'
+              console.log('📝 Suggested existing client with medium confidence:', topMatch.client.name)
+            }
           }
-          
-          return { client, score }
-        })
+        }
         
-        // Sort by score and get top match
-        const topMatch = scoredClients.sort((a, b) => b.score - a.score)[0]
-        
-        if (topMatch && topMatch.score > 0) {
-          // Determine confidence level
-          let confidence: ConfidenceLevel = 'low'
-          if (topMatch.score > 8) {
-            confidence = 'high'
-          } else if (topMatch.score > 4) {
-            confidence = 'medium'
+        // If no existing client was matched with high confidence, create a new client automatically
+        if (!parsedData.client.id && parsedData.client.name.trim()) {
+          console.log('🆕 Creating new client automatically:', parsedData.client.name)
+          
+          const newClientData = {
+            userId,
+            name: parsedData.client.name.trim(),
+            email: parsedData.client.email?.trim() || "",
+            phone: parsedData.client.phone?.trim() || "",
+            address: parsedData.client.address?.trim() || "",
+            taxNumber: parsedData.client.taxNumber?.trim() || "",
+            notes: "Auto-created during AI invoice/quote generation"
           }
           
-          // Auto-assign if confidence is high
-          if (confidence === 'high') {
-            parsedData.client.id = topMatch.client.id
+          const createResult = await createClientAction(newClientData)
+          
+          if (createResult.isSuccess) {
+            parsedData.client.id = createResult.data.id
             parsedData.client.matchConfidence = 'high'
-          } else if (confidence === 'medium') {
-            // Store the top match for user confirmation
-            parsedData.client.suggestedMatch = topMatch.client
-            parsedData.client.matchConfidence = 'medium'
+            parsedData.client.autoCreated = true
+            console.log('✅ Successfully created new client:', createResult.data.name, 'ID:', createResult.data.id)
+          } else {
+            console.warn('❌ Failed to create new client:', createResult.message)
+            // Continue without client ID - will prompt user for clarification
           }
         }
       } catch (error) {
-        console.warn('Client matching failed, continuing without match:', error)
+        console.warn('Client matching/creation failed, continuing without match:', error)
       }
     }
     
@@ -211,13 +242,14 @@ export async function parseLLMTextAction(
     }
     
     // If we still don't have a client ID and there's a client name, request clarification
+    // This should be rare now that we auto-create clients
     if (parsedData.client && parsedData.client.name && !parsedData.client.id) {
       parsedData.needsClarification = true
       if (!parsedData.clarificationQuestions) {
         parsedData.clarificationQuestions = []
       }
-      // Add client clarification question if not already present
-      const clientQuestion = "Could you confirm if this is for an existing client, or should I create a new client?"
+      // Add client clarification question if not already present - this is a fallback for when auto-creation fails
+      const clientQuestion = "Could not create client automatically. Please provide more client details or select an existing client."
       if (!parsedData.clarificationQuestions.includes(clientQuestion)) {
         parsedData.clarificationQuestions.unshift(clientQuestion)
       }
@@ -227,6 +259,7 @@ export async function parseLLMTextAction(
       hasClient: !!parsedData.client,
       clientName: parsedData.client?.name,
       clientId: parsedData.client?.id,
+      clientAutoCreated: parsedData.client?.autoCreated,
       itemsCount: parsedData.items?.length || 0,
       needsClarification: parsedData.needsClarification,
       clarificationQuestions: parsedData.clarificationQuestions?.length || 0

@@ -30,6 +30,7 @@ export interface LLMExtractedClient {
   confidence?: ConfidenceLevel // Confidence level of the match
   matchConfidence?: ConfidenceLevel // Confidence level of the automatic match
   suggestedMatch?: SelectClient // Suggested client match for user confirmation
+  autoCreated?: boolean   // Flag indicating if client was auto-created during processing
 }
 
 /**
