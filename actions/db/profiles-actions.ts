@@ -2,8 +2,7 @@
 @file profiles-actions.ts
 @description
 Contains server actions related to user profiles in the database.
-Handles creating, retrieving, updating, and deleting user profiles,
-as well as special operations like updating via Stripe customer ID.
+Handles creating, retrieving, updating, and deleting user profiles.
 
 Optimizations:
 
@@ -40,7 +39,7 @@ Profile retrieval by user ID
 
 
 
-Profile updating by user ID or Stripe customer ID
+Profile updating by user ID
 
 
 
@@ -84,7 +83,7 @@ Creates default templates when creating a new profile
 
 
 
-Handles Stripe integration for subscription management
+All users have full access to application features
 
 
 
@@ -201,48 +200,6 @@ entityId: userId
 }
 }
 
-/**
-
-Updates a profile by Stripe customer ID
-Used for subscription updates from Stripe webhooks
-
-@param stripeCustomerId The Stripe customer ID to look up
-@param data The updated profile data
-@returns Promise resolving to an ActionState with the updated profile
-*/
-export async function updateProfileByStripeCustomerIdAction(
-stripeCustomerId: string,
-data: Partial<InsertProfile>
-): Promise<ActionState<SelectProfile>> {
-try {
-const [updatedProfile] = await db
-.update(profilesTable)
-.set({
-...data,
-updatedAt: new Date()
-})
-.where(eq(profilesTable.stripeCustomerId, stripeCustomerId))
-.returning()
-if (!updatedProfile) {
-return {
-isSuccess: false,
-message: "Profile not found by Stripe customer ID"
-}
-}
-return createSuccessResponse(
-updatedProfile,
-"Profile updated by Stripe customer ID successfully",
-{ operation: 'update', entityName: 'profile' }
-)
-} catch (error) {
-return handleActionError(error, {
-actionName: 'updateProfileByStripeCustomerIdAction',
-entityName: 'profile',
-operation: 'update',
-entityId: stripeCustomerId
-})
-}
-}
 
 /**
 

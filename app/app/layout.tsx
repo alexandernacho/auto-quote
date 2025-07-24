@@ -8,7 +8,6 @@
  * - Adds the app sidebar for navigation
  * - Provides authentication checks and redirects
  * - Renders the app header and main content area
- * - Handles subscription status checks for feature access
  * 
  * @dependencies
  * - clerk/nextjs: For authentication
@@ -19,7 +18,6 @@
  * @notes
  * - Protects all routes under the /app path
  * - Checks user authentication and profile existence
- * - Redirects free users to pricing page for certain sections (premium features)
  */
 
 import { getProfileByUserIdAction } from "@/actions/db/profiles-actions"
@@ -29,32 +27,12 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { auth } from "@clerk/nextjs/server"
 import { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { headers } from "next/headers"
 
 export const metadata: Metadata = {
   title: "Dashboard | Smart Invoice WebApp",
   description: "Manage your invoices and quotes"
 }
 
-/**
- * Checks if the current pathname is the settings page
- * 
- * @param pathname The current URL path
- * @returns True if on a settings page
- */
-function isSettingsPage(pathname: string): boolean {
-  return pathname.startsWith("/app/settings")
-}
-
-/**
- * Checks if the current pathname is the dashboard page
- * 
- * @param pathname The current URL path
- * @returns True if on the dashboard page
- */
-function isDashboardPage(pathname: string): boolean {
-  return pathname === "/app/dashboard" || pathname === "/app"
-}
 
 /**
  * Layout wrapper for authenticated app pages
@@ -83,19 +61,6 @@ export default async function AppLayout({
     return redirect("/signup")
   }
 
-  // Get current pathname for route-based logic
-  const headersList = await headers();
-  const pathname = new URL(
-    headersList.get("x-url") || "", 
-    "http://localhost"
-  ).pathname
-
-  // Redirect free users to pricing page unless they're on dashboard or settings
-  if (profile.membership === "free" && 
-      !isSettingsPage(pathname) && 
-      !isDashboardPage(pathname)) {
-    return redirect("/pricing")
-  }
 
   return (
     <div className="flex min-h-screen">

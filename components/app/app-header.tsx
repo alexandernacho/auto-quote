@@ -6,8 +6,6 @@
  * 
  * Key features:
  * - Displays user business name
- * - Shows subscription status badge
- * - Provides theme toggle
  * - Shows user profile menu
  * - Includes quick actions dropdown
  * - Responsive for mobile and desktop
@@ -26,7 +24,6 @@
 "use client"
 
 import { SelectProfile } from "@/db/schema"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
   DropdownMenu, 
@@ -223,13 +220,6 @@ export function AppHeader({ profile }: AppHeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
         
-        {/* Subscription badge */}
-        <Badge 
-          variant={profile.membership === "pro" ? "default" : "outline"}
-          className={profile.membership === "pro" ? "bg-blue-500 hover:bg-blue-600" : ""}
-        >
-          {profile.membership === "pro" ? "Pro" : "Free"}
-        </Badge>
         
         {/* More Options Menu */}
         <DropdownMenu>

@@ -15,6 +15,13 @@
       "when": 1741182629594,
       "tag": "0001_dear_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1753375277488,
+      "tag": "0002_redundant_thanos",
+      "breakpoints": true
     }
   ]
 }
