@@ -80,10 +80,18 @@ export async function parseLLMTextAction(
       ? buildInvoiceParserPrompt(context)
       : buildQuoteParserPrompt(context)
     
-    // Use OpenAI for parsing
+    // Use OpenAI for parsing with timeout
     let parsedData: LLMParseResult
     try {
-      parsedData = await parseWithOpenAI(prompt, type)
+      // Add a timeout wrapper to prevent Vercel function timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('OpenAI request timeout')), 25000) // 25 second timeout
+      })
+      
+      parsedData = await Promise.race([
+        parseWithOpenAI(prompt, type),
+        timeoutPromise
+      ])
     } catch (error) {
       console.error("OpenAI parsing failed:", error)
       // Return a basic fallback response if OpenAI fails
@@ -94,18 +102,68 @@ export async function parseLLMTextAction(
     parsedData.rawText = text
     
     // If no client ID was assigned by the LLM, try to match automatically
-    if (parsedData.client && parsedData.client.name && !parsedData.client.id) {
+    // Use the already fetched clients to avoid additional database calls
+    if (parsedData.client && parsedData.client.name && !parsedData.client.id && clients.length > 0) {
       try {
-        const matchResult = await getMatchedClientSuggestionsAction(parsedData.client, userId)
-        if (matchResult.isSuccess && matchResult.data.matches.length > 0) {
-          const topMatch = matchResult.data.matches[0]
+        // Inline client matching logic to avoid timeout
+        const scoredClients = clients.map(client => {
+          let score = 0
+          
+          // Calculate name similarity (weighted highest)
+          if (parsedData.client.name && client.name) {
+            const nameSimilarity = calculateStringSimilarity(parsedData.client.name, client.name)
+            score += nameSimilarity * 3
+          }
+          
+          // Email exact match
+          if (parsedData.client.email && client.email && 
+              parsedData.client.email.toLowerCase() === client.email.toLowerCase()) {
+            score += 5
+          }
+          
+          // Phone match
+          if (parsedData.client.phone && client.phone) {
+            const normalizedInput = normalizePhone(parsedData.client.phone)
+            const normalizedStored = normalizePhone(client.phone)
+            if (normalizedInput === normalizedStored) {
+              score += 4
+            }
+          }
+          
+          // Address similarity
+          if (parsedData.client.address && client.address) {
+            const addressSimilarity = calculateStringSimilarity(parsedData.client.address, client.address)
+            score += addressSimilarity * 2
+          }
+          
+          // Tax number match
+          if (parsedData.client.taxNumber && client.taxNumber && 
+              parsedData.client.taxNumber === client.taxNumber) {
+            score += 4
+          }
+          
+          return { client, score }
+        })
+        
+        // Sort by score and get top match
+        const topMatch = scoredClients.sort((a, b) => b.score - a.score)[0]
+        
+        if (topMatch && topMatch.score > 0) {
+          // Determine confidence level
+          let confidence: ConfidenceLevel = 'low'
+          if (topMatch.score > 8) {
+            confidence = 'high'
+          } else if (topMatch.score > 4) {
+            confidence = 'medium'
+          }
+          
           // Auto-assign if confidence is high
-          if (matchResult.data.confidence === 'high') {
-            parsedData.client.id = topMatch.id
+          if (confidence === 'high') {
+            parsedData.client.id = topMatch.client.id
             parsedData.client.matchConfidence = 'high'
-          } else if (matchResult.data.confidence === 'medium') {
+          } else if (confidence === 'medium') {
             // Store the top match for user confirmation
-            parsedData.client.suggestedMatch = topMatch
+            parsedData.client.suggestedMatch = topMatch.client
             parsedData.client.matchConfidence = 'medium'
           }
         }
@@ -167,18 +225,20 @@ export async function parseLLMTextAction(
 async function parseWithOpenAI(prompt: string, type: 'invoice' | 'quote'): Promise<LLMParseResult> {
   try {
     const llmResponse = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
+      model: "gpt-4o-mini", // Use faster, cheaper model instead of gpt-4-turbo
       messages: [
         {
           role: "system",
-          content: "You are an expert invoice/quote parser. Extract structured data from user input."
+          content: "You are an expert invoice/quote parser. Extract structured data from user input. Respond only with valid JSON."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      temperature: 0, // Make responses more deterministic and faster
+      max_tokens: 2000 // Limit response size to speed up processing
     })
     
     // Parse response
@@ -449,18 +509,20 @@ export async function extractClientInformationAction(
     // Use OpenAI to extract client information
     try {
       const llmResponse = await openai.chat.completions.create({
-        model: "gpt-4-turbo",
+        model: "gpt-4o-mini", // Use faster model
         messages: [
           {
             role: "system",
-            content: "You are an expert at extracting client information from text."
+            content: "You are an expert at extracting client information from text. Respond only with valid JSON."
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        max_tokens: 1000
       })
       
       const responseText = llmResponse.choices[0].message.content || "{}"

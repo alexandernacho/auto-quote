@@ -22,6 +22,6 @@ if (!process.env.OPENAI_API_KEY) {
 // Create and export the OpenAI client instance
 export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000, // 60 seconds timeout for API requests
-  maxRetries: 2   // Retry failed requests up to 2 times
+  timeout: 20000, // 20 seconds timeout for API requests (reduced from 60s)
+  maxRetries: 1   // Reduce retries from 2 to 1 to prevent timeout
 })
