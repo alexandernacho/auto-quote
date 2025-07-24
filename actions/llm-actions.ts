@@ -93,6 +93,27 @@ export async function parseLLMTextAction(
     // Add raw text for reference
     parsedData.rawText = text
     
+    // If no client ID was assigned by the LLM, try to match automatically
+    if (parsedData.client && parsedData.client.name && !parsedData.client.id) {
+      try {
+        const matchResult = await getMatchedClientSuggestionsAction(parsedData.client, userId)
+        if (matchResult.isSuccess && matchResult.data.matches.length > 0) {
+          const topMatch = matchResult.data.matches[0]
+          // Auto-assign if confidence is high
+          if (matchResult.data.confidence === 'high') {
+            parsedData.client.id = topMatch.id
+            parsedData.client.matchConfidence = 'high'
+          } else if (matchResult.data.confidence === 'medium') {
+            // Store the top match for user confirmation
+            parsedData.client.suggestedMatch = topMatch
+            parsedData.client.matchConfidence = 'medium'
+          }
+        }
+      } catch (error) {
+        console.warn('Client matching failed, continuing without match:', error)
+      }
+    }
+    
     // Ensure needsClarification is set to true if there are validation issues
     if (!parsedData.items || parsedData.items.length === 0 || 
         !parsedData.client || !parsedData.client.name ||
@@ -106,6 +127,19 @@ export async function parseLLMTextAction(
           "What specific products or services should be included?",
           "Are there any special terms or conditions for this document?"
         ]
+      }
+    }
+    
+    // If we still don't have a client ID and there's a client name, request clarification
+    if (parsedData.client && parsedData.client.name && !parsedData.client.id) {
+      parsedData.needsClarification = true
+      if (!parsedData.clarificationQuestions) {
+        parsedData.clarificationQuestions = []
+      }
+      // Add client clarification question if not already present
+      const clientQuestion = "Could you confirm if this is for an existing client, or should I create a new client?"
+      if (!parsedData.clarificationQuestions.includes(clientQuestion)) {
+        parsedData.clarificationQuestions.unshift(clientQuestion)
       }
     }
     

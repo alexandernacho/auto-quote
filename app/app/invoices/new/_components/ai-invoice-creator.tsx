@@ -114,11 +114,18 @@ export function AIInvoiceCreator({
       // Convert LLM result to invoice data
       const { invoiceData, invoiceItems } = convertToInvoiceData(result)
       
-      // If no client ID was found, show error
+      // If no client ID was found, show error with more helpful message
       if (!invoiceData.clientId) {
+        let errorMessage = "Please select an existing client or create a new one before generating an invoice."
+        
+        // If there's a suggested match, mention it
+        if (result.client?.suggestedMatch) {
+          errorMessage = `We found a similar client "${result.client.suggestedMatch.name}". Please confirm if this is the correct client or create a new one.`
+        }
+        
         toast({
           title: "Client Required",
-          description: "Please select an existing client or create a new one before generating an invoice.",
+          description: errorMessage,
           variant: "destructive"
         })
         setIsGenerating(false)

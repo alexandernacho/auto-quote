@@ -96,11 +96,18 @@ export function AIQuoteCreator({
       // Convert LLM result to quote data
       const { quoteData, quoteItems } = convertToQuoteData(result)
       
-      // If no client ID was found, show error
+      // If no client ID was found, show error with more helpful message
       if (!quoteData.clientId) {
+        let errorMessage = "Please select an existing client or create a new one before generating a quote."
+        
+        // If there's a suggested match, mention it
+        if (result.client?.suggestedMatch) {
+          errorMessage = `We found a similar client "${result.client.suggestedMatch.name}". Please confirm if this is the correct client or create a new one.`
+        }
+        
         toast({
           title: "Client Required",
-          description: "Please select an existing client or create a new one before generating a quote.",
+          description: errorMessage,
           variant: "destructive"
         })
         setIsGenerating(false)

@@ -28,6 +28,8 @@ export interface LLMExtractedClient {
   address?: string        // Optional address
   taxNumber?: string      // Optional tax/VAT number
   confidence?: ConfidenceLevel // Confidence level of the match
+  matchConfidence?: ConfidenceLevel // Confidence level of the automatic match
+  suggestedMatch?: SelectClient // Suggested client match for user confirmation
 }
 
 /**
